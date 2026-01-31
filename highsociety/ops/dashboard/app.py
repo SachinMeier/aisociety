@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from highsociety.ops.cli import execute_spec, load_spec, resolve_output_dir
 from highsociety.ops.metrics import compute_summary
-from scripts.run import execute_spec, load_spec, resolve_output_dir
 
 
 def run_dashboard() -> None:

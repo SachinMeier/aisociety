@@ -5,8 +5,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from highsociety.ops.cli import execute_spec, load_spec, resolve_output_dir
 from highsociety.ops.spec import RunSpec
-from scripts.run import execute_spec, load_spec, resolve_output_dir
 
 
 def main() -> None:
