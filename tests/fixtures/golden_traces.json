@@ -1,0 +1,53 @@
+{
+  "traces": [
+    {
+      "name": "free_win_no_bids",
+      "players": 3,
+      "starting_player": 0,
+      "deck": [
+        {"kind": "possession", "value": 3}
+      ],
+      "steps": [
+        {"start_round": true},
+        {"action": {"player": 0, "kind": "pass"}},
+        {"action": {"player": 1, "kind": "pass"}},
+        {"expect": {"round_active": false, "player_possessions": {"2": [3]}, "money_discard": []}}
+      ]
+    },
+    {
+      "name": "misfortune_first_pass_gets_card",
+      "players": 3,
+      "starting_player": 0,
+      "deck": [
+        {"kind": "misfortune", "misfortune": "debt"}
+      ],
+      "steps": [
+        {"start_round": true},
+        {"action": {"player": 0, "kind": "bid", "cards": [1000]}},
+        {"action": {"player": 1, "kind": "bid", "cards": [2000]}},
+        {"action": {"player": 2, "kind": "pass"}},
+        {"expect": {"round_active": false, "player_flags": {"2": {"debt": 1}}, "money_discard": [1000, 2000], "starting_player": 2}}
+      ]
+    },
+    {
+      "name": "theft_pending_discards_next_possession",
+      "players": 3,
+      "starting_player": 0,
+      "deck": [
+        {"kind": "misfortune", "misfortune": "theft"},
+        {"kind": "possession", "value": 9}
+      ],
+      "steps": [
+        {"start_round": true},
+        {"action": {"player": 0, "kind": "pass"}},
+        {"expect": {"player_flags": {"0": {"theft_pending": 1}}}},
+        {"start_round": true},
+        {"action": {"player": 0, "kind": "bid", "cards": [1000]}},
+        {"action": {"player": 1, "kind": "pass"}},
+        {"action": {"player": 2, "kind": "pass"}},
+        {"expect": {"player_flags": {"0": {"theft_pending": 0}}, "player_possessions": {"0": []}}
+        }
+      ]
+    }
+  ]
+}
