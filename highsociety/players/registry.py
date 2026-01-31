@@ -41,3 +41,60 @@ class PlayerRegistry:
         if not isinstance(player_type, str) or not player_type:
             raise ValueError("Player spec must include a non-empty 'type'")
         return player_type
+
+
+def build_default_registry() -> PlayerRegistry:
+    """Return a registry pre-populated with baseline players."""
+    registry = PlayerRegistry()
+    register_baseline_players(registry)
+    return registry
+
+
+def register_baseline_players(registry: PlayerRegistry) -> None:
+    """Register random and heuristic player factories."""
+    from highsociety.players.heuristic_bot import HeuristicBot
+    from highsociety.players.random_bot import RandomBot
+
+    registry.register("random", _random_factory(RandomBot))
+    registry.register("heuristic", _heuristic_factory(HeuristicBot))
+
+
+def _random_factory(bot_cls: type) -> PlayerFactory:
+    """Create a factory for the random bot."""
+
+    def factory(spec: Mapping[str, Any]) -> Player:
+        params = _coerce_params(spec.get("params"))
+        seed = params.get("seed")
+        name = _coerce_name(spec.get("name"), default="random")
+        return bot_cls(name=name, seed=seed)
+
+    return factory
+
+
+def _heuristic_factory(bot_cls: type) -> PlayerFactory:
+    """Create a factory for the heuristic bot."""
+
+    def factory(spec: Mapping[str, Any]) -> Player:
+        params = _coerce_params(spec.get("params"))
+        seed = params.get("seed")
+        style = params.get("style", "balanced")
+        name = _coerce_name(spec.get("name"), default="heuristic")
+        return bot_cls(name=name, style=style, seed=seed)
+
+    return factory
+
+
+def _coerce_params(params: object) -> dict[str, object]:
+    """Coerce params into a dict."""
+    if params is None:
+        return {}
+    if not isinstance(params, dict):
+        raise ValueError("PlayerSpec.params must be a dict")
+    return dict(params)
+
+
+def _coerce_name(name: object, default: str) -> str:
+    """Coerce the player name into a string."""
+    if isinstance(name, str) and name:
+        return name
+    return default
