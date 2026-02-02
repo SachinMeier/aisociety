@@ -19,6 +19,10 @@ class SummaryMetrics:
     win_rates: dict[int, float]
     poorest_counts: dict[int, int]
     poorest_rates: dict[int, float]
+    title_counts: dict[int, int]
+    scandal_counts: dict[int, int]
+    debt_counts: dict[int, int]
+    theft_counts: dict[int, int]
     average_scores: dict[int, float]
     average_money: dict[int, float]
 
@@ -33,6 +37,10 @@ class SummaryMetrics:
             "win_rates": _stringify_keys(self.win_rates),
             "poorest_counts": _stringify_keys(self.poorest_counts),
             "poorest_rates": _stringify_keys(self.poorest_rates),
+            "title_counts": _stringify_keys(self.title_counts),
+            "scandal_counts": _stringify_keys(self.scandal_counts),
+            "debt_counts": _stringify_keys(self.debt_counts),
+            "theft_counts": _stringify_keys(self.theft_counts),
             "average_scores": _stringify_keys(self.average_scores),
             "average_money": _stringify_keys(self.average_money),
         }
@@ -47,6 +55,10 @@ def compute_summary(run_result: RunResult) -> SummaryMetrics:
     player_ids = sorted(_collect_player_ids(run_result))
     win_counts = {pid: 0 for pid in player_ids}
     poorest_counts = {pid: 0 for pid in player_ids}
+    title_counts = {pid: 0 for pid in player_ids}
+    scandal_counts = {pid: 0 for pid in player_ids}
+    debt_counts = {pid: 0 for pid in player_ids}
+    theft_counts = {pid: 0 for pid in player_ids}
     score_sums = {pid: 0.0 for pid in player_ids}
     score_counts = {pid: 0 for pid in player_ids}
     money_sums = {pid: 0.0 for pid in player_ids}
@@ -60,6 +72,17 @@ def compute_summary(run_result: RunResult) -> SummaryMetrics:
             score_counts[pid] += 1
         for pid, money in game.result.money_remaining.items():
             money_sums[pid] += float(money)
+        for player in game.state.players:
+            pid = player.id
+            if pid not in title_counts:
+                title_counts[pid] = 0
+                scandal_counts[pid] = 0
+                debt_counts[pid] = 0
+                theft_counts[pid] = 0
+            title_counts[pid] += player.titles
+            scandal_counts[pid] += player.scandal
+            debt_counts[pid] += player.debt
+            theft_counts[pid] += player.theft
     win_rates = {
         pid: (win_counts[pid] / games_finished) if games_finished else 0.0
         for pid in player_ids
@@ -85,6 +108,10 @@ def compute_summary(run_result: RunResult) -> SummaryMetrics:
         win_rates=win_rates,
         poorest_counts=poorest_counts,
         poorest_rates=poorest_rates,
+        title_counts=title_counts,
+        scandal_counts=scandal_counts,
+        debt_counts=debt_counts,
+        theft_counts=theft_counts,
         average_scores=average_scores,
         average_money=average_money,
     )

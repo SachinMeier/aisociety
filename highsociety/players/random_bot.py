@@ -9,6 +9,7 @@ from highsociety.app.observations import Observation
 from highsociety.domain.actions import Action
 from highsociety.domain.errors import InvalidAction
 from highsociety.domain.rules import GameResult
+from highsociety.players.colors import BOT_COLORS
 
 
 @dataclass
@@ -18,6 +19,7 @@ class RandomBot:
     name: str = "random"
     seed: int | None = None
     kind: str = "random"
+    color: str = BOT_COLORS["random"]
     _rng: random.Random = field(init=False)
     _player_id: int | None = None
 

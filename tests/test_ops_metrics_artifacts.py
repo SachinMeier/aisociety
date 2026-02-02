@@ -68,6 +68,10 @@ def test_compute_summary_metrics() -> None:
     assert summary.average_scores[0] == 10.0
     assert summary.average_scores[1] == 6.5
     assert summary.average_scores[2] == 5.0
+    assert summary.title_counts[0] == 0
+    assert summary.scandal_counts[1] == 0
+    assert summary.debt_counts[2] == 0
+    assert summary.theft_counts[0] == 0
 
 
 def test_write_artifacts(tmp_path) -> None:
@@ -82,6 +86,10 @@ def test_write_artifacts(tmp_path) -> None:
     assert "win_rates" in summary_data
     assert "average_scores" in summary_data
     assert "finish_rate" in summary_data
+    assert "title_counts" in summary_data
+    assert "scandal_counts" in summary_data
+    assert "debt_counts" in summary_data
+    assert "theft_counts" in summary_data
 
     with paths.results_csv.open("r", encoding="utf-8", newline="") as handle:
         reader = csv.reader(handle)

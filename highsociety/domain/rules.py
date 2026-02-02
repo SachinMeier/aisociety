@@ -243,6 +243,7 @@ class RulesEngine:
             elif card.misfortune == MisfortuneKind.DEBT:
                 player.debt += 1
             elif card.misfortune == MisfortuneKind.THEFT:
+                player.theft += 1
                 if player.possessions:
                     options = tuple(sorted(card.value for card in player.possessions))
                     state.pending_discard = PendingDiscard(player.id, options)

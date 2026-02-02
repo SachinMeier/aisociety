@@ -41,11 +41,16 @@ class PlayerSpec:
             params = {}
         if not isinstance(params, dict):
             raise ValueError("PlayerSpec.params must be a dict")
+        params = dict(params)
+        if "style" in data and "style" not in params:
+            params["style"] = data["style"]
+        if "seed" in data and "seed" not in params:
+            params["seed"] = data["seed"]
         return PlayerSpec(
             type=str(data.get("type", "")),
             name=data.get("name"),
             checkpoint=data.get("checkpoint"),
-            params=dict(params),
+            params=params,
         )
 
 

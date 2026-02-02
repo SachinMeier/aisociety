@@ -6,9 +6,11 @@ import csv
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Mapping
 
 from highsociety.domain.rules import RulesEngine
 from highsociety.ops.metrics import SummaryMetrics, compute_summary
+from highsociety.ops.spec import RunSpec
 from highsociety.ops.runner import GameRun, RunResult
 
 
@@ -18,17 +20,27 @@ class ArtifactPaths:
 
     summary_json: Path
     results_csv: Path
+    spec_json: Path
 
 
-def write_artifacts(run_result: RunResult, output_dir: Path) -> ArtifactPaths:
+def write_artifacts(
+    run_result: RunResult,
+    output_dir: Path,
+    spec_source: Mapping[str, Any] | None = None,
+) -> ArtifactPaths:
     """Write summary and results artifacts to the output directory."""
     output_dir.mkdir(parents=True, exist_ok=True)
     summary_path = output_dir / "summary.json"
     results_path = output_dir / "results.csv"
+    spec_path = output_dir / "spec.json"
     summary = compute_summary(run_result)
     write_summary(summary_path, summary)
     write_results_csv(results_path, run_result.games)
-    return ArtifactPaths(summary_json=summary_path, results_csv=results_path)
+    if spec_source is None:
+        write_spec(spec_path, run_result.spec)
+    else:
+        write_spec_source(spec_path, spec_source)
+    return ArtifactPaths(summary_json=summary_path, results_csv=results_path, spec_json=spec_path)
 
 
 def write_summary(path: Path, summary: SummaryMetrics) -> None:
@@ -47,6 +59,18 @@ def write_results_csv(path: Path, games: tuple[GameRun, ...]) -> None:
         writer.writeheader()
         for game in games:
             writer.writerow(_game_row(game))
+
+
+def write_spec(path: Path, spec: RunSpec) -> None:
+    """Write the run spec to JSON for reproducibility."""
+    with path.open("w", encoding="utf-8") as handle:
+        json.dump(spec.to_mapping(), handle, indent=2, sort_keys=True)
+
+
+def write_spec_source(path: Path, spec: Mapping[str, Any]) -> None:
+    """Write the original run spec mapping to JSON."""
+    with path.open("w", encoding="utf-8") as handle:
+        json.dump(spec, handle, indent=2, sort_keys=True)
 
 
 def _game_row(game: GameRun) -> dict[str, str | int]:

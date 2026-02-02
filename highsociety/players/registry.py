@@ -51,12 +51,17 @@ def build_default_registry() -> PlayerRegistry:
 
 
 def register_baseline_players(registry: PlayerRegistry) -> None:
-    """Register random and heuristic player factories."""
+    """Register baseline player factories."""
     from highsociety.players.heuristic_bot import HeuristicBot
+    from highsociety.players.mlp_bot import MLPPolicyBot
     from highsociety.players.random_bot import RandomBot
+    from highsociety.players.static_bot import StaticBot
 
     registry.register("random", _random_factory(RandomBot))
     registry.register("heuristic", _heuristic_factory(HeuristicBot))
+    registry.register("static", _static_factory(StaticBot))
+    registry.register("mlp", _mlp_factory(MLPPolicyBot))
+    registry.register("linear_rl", _linear_rl_factory())
 
 
 def _random_factory(bot_cls: type) -> PlayerFactory:
@@ -80,6 +85,70 @@ def _heuristic_factory(bot_cls: type) -> PlayerFactory:
         style = params.get("style", "balanced")
         name = _coerce_name(spec.get("name"), default="heuristic")
         return bot_cls(name=name, style=style, seed=seed)
+
+    return factory
+
+
+def _static_factory(bot_cls: type) -> PlayerFactory:
+    """Create a factory for the static bot."""
+
+    def factory(spec: Mapping[str, Any]) -> Player:
+        params = _coerce_params(spec.get("params"))
+        name = _coerce_name(spec.get("name"), default="static")
+        kwargs: dict[str, object] = {"name": name}
+        if "title_budget" in params:
+            kwargs["title_budget"] = params["title_budget"]
+        if "value_scale" in params:
+            kwargs["value_scale"] = params["value_scale"]
+        if "cancel_value" in params:
+            kwargs["cancel_value"] = params["cancel_value"]
+        return bot_cls(**kwargs)
+
+    return factory
+
+
+def _mlp_factory(bot_cls: type) -> PlayerFactory:
+    """Create a factory for the MLP bot."""
+
+    def factory(spec: Mapping[str, Any]) -> Player:
+        params = _coerce_params(spec.get("params"))
+        checkpoint = spec.get("checkpoint") or params.get("checkpoint")
+        if not isinstance(checkpoint, str) or not checkpoint:
+            raise ValueError("MLP bot requires a checkpoint path")
+        temperature = float(params.get("temperature", 0.0))
+        seed = params.get("seed")
+        device = params.get("device", "cpu")
+        name = _coerce_name(spec.get("name"), default="mlp")
+        return bot_cls(
+            name=name,
+            checkpoint=str(checkpoint),
+            temperature=temperature,
+            seed=seed,
+            device=str(device),
+        )
+
+    return factory
+
+
+def _linear_rl_factory() -> PlayerFactory:
+    """Create a factory for the linear RL bot."""
+
+    def factory(spec: Mapping[str, Any]) -> Player:
+        params = _coerce_params(spec.get("params"))
+        checkpoint = spec.get("checkpoint") or params.get("checkpoint")
+        if not isinstance(checkpoint, str) or not checkpoint:
+            raise ValueError("linear_rl requires a checkpoint path")
+        seed = params.get("seed")
+        epsilon = float(params.get("epsilon", 0.0))
+        name = _coerce_name(spec.get("name"), default="linear_rl")
+        from highsociety.players.linear_rl_bot import LinearRLBot
+
+        return LinearRLBot(
+            name=name,
+            checkpoint_path=checkpoint,
+            epsilon=epsilon,
+            seed=seed if isinstance(seed, int) else None,
+        )
 
     return factory
 

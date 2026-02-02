@@ -14,10 +14,16 @@ from highsociety.ops.spec import RunSpec
 
 def load_spec(path: Path) -> RunSpec:
     """Load a run spec from JSON or YAML."""
+    spec, _ = load_spec_with_data(path)
+    return spec
+
+
+def load_spec_with_data(path: Path) -> tuple[RunSpec, Mapping[str, Any]]:
+    """Load a run spec and return both the parsed spec and raw mapping."""
     data = _load_spec_data(path)
     if not isinstance(data, Mapping):
         raise ValueError("Spec file must contain a mapping")
-    return RunSpec.from_mapping(data)
+    return RunSpec.from_mapping(data), data
 
 
 def resolve_output_dir(output_dir: Path | None, base_dir: Path | None = None) -> Path:
@@ -36,14 +42,14 @@ def execute_spec(
     write_outputs: bool = True,
 ) -> RunResult | None:
     """Execute a run spec and optionally write artifacts."""
-    spec = load_spec(spec_path)
+    spec, spec_data = load_spec_with_data(spec_path)
     if dry_run:
         return None
     manager = RunManager()
     result = manager.run(spec)
     if write_outputs:
         target = resolve_output_dir(output_dir)
-        write_artifacts(result, target)
+        write_artifacts(result, target, spec_source=spec_data)
     return result
 
 
