@@ -1,0 +1,13 @@
+{
+    "mode": "eval",
+    "seed": 42,
+    "num_games": 200,
+    "players": [
+      {"type": "linear_rl", "checkpoint": "checkpoints/linear_v1.pkl", "params": {"epsilon": 0.0}},
+      {"type": "heuristic", "params": {"style": "balanced"}},
+      {"type": "heuristic", "params": {"style": "aggressive"}},
+      {"type": "heuristic", "params": {"style": "cautious"}},
+      {"type": "static"}
+    ],
+    "rules": {}
+  }

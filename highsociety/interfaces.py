@@ -12,6 +12,7 @@ class Player(Protocol):
     """Runtime player API used by the game runner."""
 
     name: str
+    color: str
 
     def reset(self, game_config: dict, player_id: int, seat: int) -> None:
         """Reset player state for a new game."""
