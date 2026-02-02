@@ -13,3 +13,9 @@ __pycache__/
 *.pyzzz
 *.pywzzz
 data/
+checkpoints/
+runs/
+trainings/
+.codex/
+.cursor/
+.claude/

@@ -1,2 +1,7 @@
 pytest==8.4.2
 ruff==0.14.14
+pre-commit==3.8.0
+numpy
+torch
+streamlit
+pyyaml
