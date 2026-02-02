@@ -1,3 +1,1 @@
-"""Ops utilities for running and reporting games."""
-
-__all__ = ["artifacts", "spec"]
+"""Operations layer for batch runs and artifacts."""

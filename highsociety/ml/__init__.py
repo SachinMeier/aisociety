@@ -1,3 +1,3 @@
-"""Machine learning models, encoders, and training loops."""
+"""Machine learning components for High Society."""
 
-__all__ = ["action_space", "checkpoints", "encoders", "models", "training"]
+__all__ = ["encoders", "models", "training"]

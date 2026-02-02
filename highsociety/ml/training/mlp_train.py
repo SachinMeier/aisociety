@@ -87,7 +87,7 @@ class MLPTrainSpec:
     def from_mapping(data: Mapping[str, Any]) -> "MLPTrainSpec":
         """Create a training spec from a mapping."""
         hidden_sizes = data.get("hidden_sizes", (128, 128))
-        if isinstance(hidden_sizes, (list, tuple)):
+        if isinstance(hidden_sizes, list | tuple):
             hidden_tuple = tuple(int(size) for size in hidden_sizes)
         else:
             hidden_tuple = (128, 128)

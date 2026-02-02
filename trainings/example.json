@@ -1,0 +1,17 @@
+{
+    "num_games": 1000,
+    "player_count": 4,
+    "seed": 1,
+    "epsilon": 0.15,
+    "learning_rate": 0.05,
+    "log_every": 1000,
+    "output": "checkpoints/linear_v1.pkl",
+    "opponents": [
+      {"type": "heuristic", "params": {"style": "balanced"}},
+      {"type": "heuristic", "params": {"style": "aggressive"}},
+      {"type": "heuristic", "params": {"style": "cautious"}},
+      {"type": "static"}
+    ],
+    "opponent_weights": [0.25, 0.25, 0.25, 0.25],
+    "learner_seats": [0]
+  }

@@ -59,7 +59,7 @@ class MLPConfig:
     def from_dict(data: dict[str, object]) -> "MLPConfig":
         """Deserialize configuration from a dict."""
         hidden_sizes = data.get("hidden_sizes", (128, 128))
-        if isinstance(hidden_sizes, (list, tuple)):
+        if isinstance(hidden_sizes, list | tuple):
             hidden_tuple = tuple(int(size) for size in hidden_sizes)
         else:
             hidden_tuple = (128, 128)

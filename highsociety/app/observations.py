@@ -1,110 +1,149 @@
-"""Observation builders for info-set-safe ML features."""
+"""Observation builders for High Society."""
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
-from typing import Iterable
 
-from highsociety.domain.cards import MisfortuneKind, MoneyCard, StatusCard, StatusKind
+from highsociety.domain.cards import MoneyCard, StatusCard, StatusKind
 from highsociety.domain.errors import InvalidState
-from highsociety.domain.state import GameState, PlayerState
+from highsociety.domain.rules import RulesEngine
+from highsociety.domain.state import GameState, PlayerState, RoundState
+
+
+@dataclass(frozen=True)
+class RoundView:
+    """Public round information for a player observation."""
+
+    turn_player: int
+    highest_bid: int
+    highest_bidder: int | None
+    open_bids: dict[int, tuple[int, ...]]
+    passed: dict[int, bool]
+
+
+@dataclass(frozen=True)
+class SelfView:
+    """Private player information for a player observation."""
+
+    hand: tuple[int, ...]
+    possessions: tuple[int, ...]
+    titles: int
+    scandal: int
+    debt: int
+    theft_pending: int
+
+
+@dataclass(frozen=True)
+class PublicView:
+    """Public game information for a player observation."""
+
+    revealed_status: tuple[StatusCard, ...]
+    remaining_counts: dict[str, int]
+    red_revealed: int
+    money_discarded: dict[int, tuple[int, ...]]
 
 
 @dataclass(frozen=True)
 class Observation:
-    """Info-set-safe observation for a single player."""
+    """Player-centric view of the game state (info-set safe)."""
 
     player_id: int
-    player_hand: tuple[int, ...]
-    player_open_bid: tuple[int, ...]
-    player_possessions: tuple[int, ...]
-    player_titles: int
-    player_scandal: int
-    player_debt: int
-    player_theft_pending: int
-    player_passed: bool
-    round_kind: StatusKind | None
-    round_value: int | None
-    round_misfortune: MisfortuneKind | None
-    round_highest_bid: int
-    round_highest_bidder: int | None
-    round_any_bid: bool
-    round_turn_player: int | None
-    round_starting_player: int | None
-    pending_discard_options: tuple[int, ...] | None
-    status_deck_size: int
-    red_revealed: int
-    game_over: bool
+    status_card: StatusCard | None
+    round: RoundView | None
+    self_view: SelfView
+    public: PublicView
 
 
 def build_observation(state: GameState, player_id: int) -> Observation:
     """Build an info-set-safe observation for the requested player."""
     player = _get_player(state, player_id)
-    round_state = state.round
-    if round_state is None:
-        round_kind = None
-        round_value = None
-        round_misfortune = None
-        round_highest_bid = 0
-        round_highest_bidder = None
-        round_any_bid = False
-        round_turn_player = None
-        round_starting_player = None
-    else:
-        card = round_state.card
-        round_kind = card.kind
-        round_value = card.value
-        round_misfortune = card.misfortune
-        round_highest_bid = round_state.highest_bid
-        round_highest_bidder = round_state.highest_bidder
-        round_any_bid = round_state.any_bid
-        round_turn_player = round_state.turn_player
-        round_starting_player = round_state.starting_player
-    pending_discard = state.pending_discard
-    pending_options = (
-        pending_discard.options
-        if pending_discard is not None and pending_discard.player_id == player_id
-        else None
+    round_view = _build_round_view(state.round, state.players)
+    self_view = SelfView(
+        hand=_sorted_values(player.hand),
+        possessions=_sorted_possessions(player),
+        titles=player.titles,
+        scandal=player.scandal,
+        debt=player.debt,
+        theft_pending=player.theft_pending,
     )
+    public = PublicView(
+        revealed_status=_revealed_status_cards(state),
+        remaining_counts=_remaining_counts(state),
+        red_revealed=state.red_revealed,
+        money_discarded=_money_discarded(state.players),
+    )
+    status_card = state.round.card if state.round is not None else None
     return Observation(
         player_id=player_id,
-        player_hand=_money_values(player.hand),
-        player_open_bid=_money_values(player.open_bid),
-        player_possessions=_status_values(player.possessions),
-        player_titles=player.titles,
-        player_scandal=player.scandal,
-        player_debt=player.debt,
-        player_theft_pending=player.theft_pending,
-        player_passed=player.passed,
-        round_kind=round_kind,
-        round_value=round_value,
-        round_misfortune=round_misfortune,
-        round_highest_bid=round_highest_bid,
-        round_highest_bidder=round_highest_bidder,
-        round_any_bid=round_any_bid,
-        round_turn_player=round_turn_player,
-        round_starting_player=round_starting_player,
-        pending_discard_options=pending_options,
-        status_deck_size=len(state.status_deck),
-        red_revealed=state.red_revealed,
-        game_over=state.game_over,
+        status_card=status_card,
+        round=round_view,
+        self_view=self_view,
+        public=public,
+    )
+
+
+def _build_round_view(
+    round_state: RoundState | None, players: list[PlayerState]
+) -> RoundView | None:
+    """Build round info for an observation."""
+    if round_state is None:
+        return None
+    open_bids = {player.id: _sorted_values(player.open_bid) for player in players}
+    passed = {player.id: player.passed for player in players}
+    return RoundView(
+        turn_player=round_state.turn_player,
+        highest_bid=round_state.highest_bid,
+        highest_bidder=round_state.highest_bidder,
+        open_bids=open_bids,
+        passed=passed,
     )
 
 
 def _get_player(state: GameState, player_id: int) -> PlayerState:
-    """Return the PlayerState for a given id or raise if missing."""
+    """Return the player with the given id."""
     for player in state.players:
         if player.id == player_id:
             return player
     raise InvalidState("Unknown player id")
 
 
-def _money_values(cards: Iterable[MoneyCard]) -> tuple[int, ...]:
-    """Return sorted money card values for the given cards."""
+def _sorted_values(cards: list[MoneyCard]) -> tuple[int, ...]:
+    """Return a sorted tuple of money card values."""
     return tuple(sorted(card.value for card in cards))
 
 
-def _status_values(cards: Iterable[StatusCard]) -> tuple[int, ...]:
-    """Return sorted possession values for the given status cards."""
-    values = [card.value for card in cards if card.value is not None]
-    return tuple(sorted(values))
+def _sorted_possessions(player: PlayerState) -> tuple[int, ...]:
+    """Return a sorted tuple of possession values for a player."""
+    return tuple(sorted(card.value for card in player.possessions))
+
+
+def _money_discarded(players: list[PlayerState]) -> dict[int, tuple[int, ...]]:
+    """Return each player's discarded money card values."""
+    return {player.id: _sorted_values(player.money_discarded) for player in players}
+
+
+def _remaining_counts(state: GameState) -> dict[str, int]:
+    """Return remaining status card counts by kind."""
+    counts = {"possession": 0, "title": 0, "misfortune": 0}
+    for card in state.status_deck:
+        if card.kind == StatusKind.POSSESSION:
+            counts["possession"] += 1
+        elif card.kind == StatusKind.TITLE:
+            counts["title"] += 1
+        else:
+            counts["misfortune"] += 1
+    return counts
+
+
+def _revealed_status_cards(state: GameState) -> tuple[StatusCard, ...]:
+    """Return a stable ordering of revealed status cards."""
+    full_deck = RulesEngine.create_status_deck()
+    remaining_counts = Counter(state.status_deck)
+    revealed: list[StatusCard] = []
+    for card in full_deck:
+        if remaining_counts[card] > 0:
+            remaining_counts[card] -= 1
+            continue
+        revealed.append(card)
+    return tuple(revealed)

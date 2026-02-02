@@ -33,7 +33,9 @@ class EnvAdapter:
         self._server = server or GameServer()
         self._game_id: str | None = None
 
-    def reset(self, seed: int | None = None, starting_player: int | None = None) -> GameState:
+    def reset(
+        self, seed: int | None = None, starting_player: int | None = None
+    ) -> GameState:
         """Start a new game and return its initial state."""
         manifest = tuple(
             PlayerManifestEntry(name=f"p{idx}", kind="env")

@@ -1,3 +1,6 @@
-"""Player implementations and registries."""
+"""Player interfaces and registry utilities."""
 
-__all__ = ["base", "linear_rl_bot", "random_bot", "registry"]
+from highsociety.players.base import Player
+from highsociety.players.registry import PlayerFactory, PlayerRegistry
+
+__all__ = ["Player", "PlayerFactory", "PlayerRegistry"]

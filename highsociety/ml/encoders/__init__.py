@@ -1,3 +1,5 @@
-"""Feature encoders for ML models."""
+"""Encoder implementations for ML policies."""
 
-__all__ = ["basic", "linear"]
+from highsociety.ml.encoders.basic import BasicEncoder
+
+__all__ = ["BasicEncoder"]

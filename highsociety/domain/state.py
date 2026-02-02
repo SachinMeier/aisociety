@@ -16,6 +16,7 @@ class PlayerState:
     titles: int = 0
     scandal: int = 0
     debt: int = 0
+    theft: int = 0
     theft_pending: int = 0
     money_discarded: list[MoneyCard] = field(default_factory=list)
 
@@ -36,6 +37,7 @@ class PlayerState:
         for name, value in (
             ("scandal", self.scandal),
             ("debt", self.debt),
+            ("theft", self.theft),
             ("theft_pending", self.theft_pending),
         ):
             if value < 0:

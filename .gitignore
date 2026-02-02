@@ -17,5 +17,5 @@ checkpoints/
 runs/
 trainings/
 .codex/
-.cursor/
 .claude/
+.cursor/
