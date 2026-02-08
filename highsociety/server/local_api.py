@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, List, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,70 +22,70 @@ class SeatSpec(BaseModel):
         ...,
         description="Seat type: 'human', 'easy', 'medium', 'hard', or 'expert'",
     )
-    name: str | None = Field(
+    name: Optional[str] = Field(
         default=None,
         description="Optional display name for the player",
     )
 
 
 class CreateGameRequest(BaseModel):
-    seats: list[SeatSpec] = Field(
+    seats: List[SeatSpec] = Field(
         ..., min_length=3, max_length=5, description="3-5 seat definitions"
     )
-    seed: int | None = Field(
+    seed: Optional[int] = Field(
         default=None, description="Optional RNG seed for reproducible games"
     )
 
 
 class StatusCardView(BaseModel):
     kind: str
-    value: int | None = None
-    misfortune: str | None = None
+    value: Optional[int] = None
+    misfortune: Optional[str] = None
 
 
 class RoundView(BaseModel):
     highest_bid: int
-    highest_bidder: int | None
+    highest_bidder: Optional[int]
     turn_player: int
 
 
 class PlayerPublicView(BaseModel):
     id: int
     name: str
-    open_bid: list[int]
-    owned_status_cards: list[StatusCardView]
+    open_bid: List[int]
+    owned_status_cards: List[StatusCardView]
     money_count: int
 
 
 class PublicTableView(BaseModel):
-    status_card: StatusCardView | None
-    round: RoundView | None
-    players: list[PlayerPublicView]
-    revealed_status_cards: list[StatusCardView]
+    status_card: Optional[StatusCardView]
+    round: Optional[RoundView]
+    players: List[PlayerPublicView]
+    revealed_status_cards: List[StatusCardView]
 
 
 class ActionView(BaseModel):
     kind: str
-    cards: list[int] | None = None
-    possession_value: int | None = None
+    cards: Optional[List[int]] = None
+    possession_value: Optional[int] = None
 
 
 class TurnResponse(BaseModel):
     game_id: str
     status: str
-    active_player_id: int | None = None
-    active_player_name: str | None = None
+    active_player_id: Optional[int] = None
+    active_player_name: Optional[str] = None
     requires_handoff: bool = False
     public_table: PublicTableView
-    private_hand: list[int] | None = None
-    legal_actions: list[ActionView] = []
-    results: dict[str, Any] | None = None
+    private_hand: Optional[List[int]] = None
+    legal_actions: List[ActionView] = []
+    results: Optional[dict] = None
 
 
 class ActionRequest(BaseModel):
     kind: str
-    cards: list[int] | None = None
-    possession_value: int | None = None
+    cards: Optional[List[int]] = None
+    possession_value: Optional[int] = None
 
 
 class SubmitActionRequest(BaseModel):
@@ -102,7 +102,7 @@ class CreateGameResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def create_app(service: LocalGameService | None = None) -> FastAPI:
+def create_app(service: Optional[LocalGameService] = None) -> FastAPI:
     """Create and configure the FastAPI application."""
     app = FastAPI(title="High Society Local Play", version="0.1.0")
 
