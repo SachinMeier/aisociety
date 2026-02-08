@@ -81,6 +81,13 @@ The dashboard lets you run specs and inspect past runs from a web UI.
 4) To run a new spec from the UI, place a JSON run spec under `runs/`
    (the dropdown lists `runs/*.json`).
 
+Dashboard pages include:
+- Run from spec
+- Build run
+- Train bots
+- Inspect runs
+- Inspect trainings (per-training learner progress charts)
+
 ## Bots (how to use them)
 Available bot types today:
 - `random`: picks a legal move at random
@@ -120,7 +127,7 @@ Example MLP player config:
 ```
 
 ## Training MLP bots
-Training uses a simple policy-gradient loop against random opponents.
+Training uses a simple policy-gradient loop with configurable opponents.
 
 Requirements:
 - PyTorch installed (CPU or GPU build).
@@ -133,6 +140,7 @@ Requirements:
   "seed": 3,
   "player_count": 3,
   "learning_rate": 0.001,
+  "learning_rate_final": 0.0001,
   "hidden_sizes": [128, 128],
   "activation": "relu",
   "dropout": 0.0,
@@ -142,6 +150,15 @@ Requirements:
   "max_grad_norm": 1.0,
   "checkpoint_path": "checkpoints/mlp_v1",
   "checkpoint_every": 250,
+  "artifacts_path": "trainings/history/mlp_v1",
+  "resume": "checkpoints/mlp_v0",
+  "opponents": [
+    {"type": "heuristic", "params": {"style": "balanced"}},
+    {"type": "heuristic", "params": {"style": "aggressive"}},
+    {"type": "heuristic", "params": {"style": "cautious"}},
+    {"type": "static"}
+  ],
+  "opponent_weights": [0.35, 0.25, 0.25, 0.15],
   "device": "cpu"
 }
 ```
@@ -149,7 +166,18 @@ Requirements:
 2) Train the model:
 - `python -m scripts.train --spec trainings/mlp/example.json`
 
-3) Use the checkpoint in a run spec (see below).
+3) Use `resume` to continue from an existing MLP checkpoint, or leave it empty for a new run.
+
+4) Use the checkpoint in a run spec (see below).
+
+Optional learning-rate scheduling:
+- Set `learning_rate_final` to linearly decay the optimizer learning rate from `learning_rate` to
+  `learning_rate_final` over the full training run.
+
+Training artifacts (when `artifacts_path` is set):
+- `training_summary.json`
+- `training_games.csv` (winners, poorest, score/money/status snapshots per game)
+- `training_players.csv` (per-player rows with cumulative wins/poorest)
 
 Checkpoint paths can be either:
 - A directory (e.g. `checkpoints/mlp_v1/`) containing `model.pt`, `config.json`, and
@@ -172,6 +200,7 @@ Requirements:
   "learning_rate": 0.05,
   "log_every": 1000,
   "output": "checkpoints/linear_v1.pkl",
+  "artifacts_path": "trainings/history/linear_v1",
   "opponents": [
     {"type": "heuristic", "params": {"style": "balanced"}},
     {"type": "heuristic", "params": {"style": "aggressive"}},
@@ -187,6 +216,8 @@ Requirements:
 - `python -m scripts.train_linear --spec trainings/linear/example.json`
 
 3) Use the checkpoint in a run spec (see below).
+
+You can also pass `--artifacts-path trainings/history/<run_name>` when using CLI flags.
 
 Linear checkpoints can be either:
 - A `.pkl` file (e.g. `checkpoints/linear_v1.pkl`).
@@ -230,6 +261,57 @@ To run the linear bot, use type `linear_rl` with a `.pkl` checkpoint:
 }
 ```
 
+## Local Play (pass-and-play in browser)
+
+Play High Society locally against bots (or other humans on the same machine) through a browser UI.
+
+### Prerequisites
+- Python backend dependencies installed (see Setup above).
+- FastAPI and uvicorn: `pip install fastapi uvicorn`
+- Node.js 18+ and npm (for the frontend).
+
+### Start the backend
+```bash
+python scripts/play_local.py
+```
+This starts the API server on `http://localhost:8000`. Options:
+- `--port 8080` to change the port.
+- `--reload` for auto-reload during development.
+
+### Start the frontend
+```bash
+cd frontend
+npm install
+npm run dev
+```
+This starts the Vite dev server (usually `http://localhost:5173`) with API requests proxied to the backend.
+
+For a production build: `npm run build` and serve the `frontend/dist/` directory.
+
+### How to play
+1. Open the frontend URL in your browser.
+2. Click **New Game** and configure 3-5 seats (Human, Easy/Medium/Hard/Expert bots).
+3. Click **Start Game** to begin.
+4. For pass-and-play with multiple humans, the game shows a handoff screen between turns so players can pass the device privately.
+5. Select an action (Pass or Bid) and click **Confirm**.
+6. The game ends when all status cards are dealt; results are shown on the final screen.
+
+### Difficulty presets
+| Label  | Bot type   | Notes                          |
+|--------|-----------|--------------------------------|
+| Easy   | Static    | Fixed budget bidding           |
+| Medium | Heuristic | Balanced risk style            |
+| Hard   | MLP       | Neural net (requires checkpoint) |
+| Expert | Heuristic | Cautious risk style            |
+
+### API endpoints
+- `POST /api/local-games` -- create a new game
+- `GET /api/local-games/{game_id}` -- get current game state
+- `GET /api/local-games/{game_id}/turn` -- get current turn view
+- `POST /api/local-games/{game_id}/actions` -- submit a player action
+- `GET /api/health` -- health check
+
 ## Where to look next
 - Original game rules text: `RULES.md`
 - Code entry points: `scripts/run.py`, `scripts/eval.py`, `scripts/train.py`
+- Local play: `highsociety/app/local_game_service.py`, `highsociety/server/local_api.py`, `frontend/`

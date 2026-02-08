@@ -19,3 +19,4 @@ trainings/
 .codex/
 .claude/
 .cursor/
+.ruff_cache/

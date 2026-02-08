@@ -71,10 +71,14 @@ class EnvAdapter:
         game_result: GameResult | None = None
         reward = 0.0
         if done:
-            game_result = self._server.score_game(self._require_game_id())
+            game_result = self.game_result()
             reward = 1.0 if player_id in game_result.winners else 0.0
         info = StepInfo(error=result.error, fatal=result.fatal, result=game_result)
         return state, reward, done, info
+
+    def game_result(self) -> GameResult:
+        """Return the scored game result for the current game."""
+        return self._server.score_game(self._require_game_id())
 
     def clone(self) -> "EnvAdapter":
         """Return a deep copy of the environment."""

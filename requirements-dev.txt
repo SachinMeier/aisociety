@@ -5,3 +5,7 @@ numpy
 torch
 streamlit
 pyyaml
+tqdm
+fastapi
+uvicorn[standard]
+httpx

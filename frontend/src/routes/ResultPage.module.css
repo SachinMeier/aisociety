@@ -1,0 +1,230 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2.5rem 1.5rem 4rem;
+  gap: 2rem;
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100vh;
+}
+
+.loading {
+  color: #b8a990;
+  font-size: 1.2rem;
+  margin-top: 4rem;
+}
+
+.error {
+  color: #e74c3c;
+  font-size: 1rem;
+}
+
+/* Winner announcement */
+.winnerSection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 2rem 0 1rem;
+}
+
+.crownIcon {
+  font-size: 3.5rem;
+  color: #d4af37;
+  filter: drop-shadow(0 2px 8px rgba(212, 175, 55, 0.5));
+  line-height: 1;
+  animation: crownEntrance 0.6s ease-out;
+}
+
+@keyframes crownEntrance {
+  from { opacity: 0; transform: translateY(-20px) scale(0.6); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.winnerName {
+  font-size: 2.8rem;
+  font-weight: 700;
+  color: #ffd700;
+  font-family: "Georgia", serif;
+  text-shadow: 0 2px 12px rgba(255, 215, 0, 0.3);
+  text-align: center;
+  line-height: 1.2;
+}
+
+/* Paper card container */
+.paperCard {
+  width: 100%;
+  padding: 1.5rem !important;
+}
+
+.cardHeader {
+  font-size: 0.8rem;
+  color: #6b5c48;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: 1rem;
+  font-family: "Georgia", serif;
+  border-bottom: 1px solid #c9b896;
+  padding-bottom: 0.75rem;
+}
+
+/* Standings list */
+.standingsList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.standingRow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px dashed #c9b896;
+}
+
+.standingRow:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.standingRow.winner {
+  padding: 0.75rem;
+  margin: -0.25rem -0.5rem;
+  background: rgba(180, 140, 60, 0.15);
+  border-radius: 8px;
+  border-bottom: none;
+}
+
+.standingRow.eliminated {
+  color: #c44040;
+}
+
+/* Rank badge */
+.rankBadge {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: 700;
+  font-family: "Georgia", serif;
+  color: #5a4a30;
+  background: #d4c4a8;
+  border: 2px solid #b8a480;
+  flex-shrink: 0;
+}
+
+.winner .rankBadge {
+  background: linear-gradient(135deg, #d4af37, #f0d060);
+  border-color: #c9a020;
+  color: #4a3a10;
+  box-shadow: 0 2px 8px rgba(212, 175, 55, 0.4);
+}
+
+.eliminated .rankBadge {
+  background: rgba(196, 64, 64, 0.15);
+  border-color: #c44040;
+  color: #c44040;
+}
+
+/* Player name */
+.playerName {
+  flex: 1;
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: #3a3020;
+  font-family: "Georgia", serif;
+}
+
+.winner .playerName {
+  color: #2a2010;
+}
+
+.eliminated .playerName {
+  text-decoration: line-through;
+  color: #c44040;
+}
+
+/* Stats column */
+.statsCol {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.scoreValue {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #3a3020;
+  font-family: "Georgia", serif;
+}
+
+.winner .scoreValue {
+  color: #8a6a10;
+}
+
+.eliminatedLabel {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #c44040;
+  font-family: "Georgia", serif;
+  font-style: italic;
+}
+
+.eliminated .moneyValue {
+  color: #c44040;
+}
+
+.moneyValue {
+  font-size: 0.8rem;
+  color: #7a6a50;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Action buttons */
+.actions {
+  display: flex;
+  gap: 1rem;
+}
+
+.primaryBtn {
+  padding: 0.8rem 2.5rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #1a3a1a;
+  background: linear-gradient(135deg, #d4af37, #f0d060);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(212, 175, 55, 0.3);
+  transition: transform 0.15s, box-shadow 0.15s;
+  font-family: "Georgia", serif;
+}
+
+.primaryBtn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(212, 175, 55, 0.4);
+}
+
+.secondaryBtn {
+  padding: 0.8rem 2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #b8a990;
+  background: transparent;
+  border: 1.5px solid rgba(184, 169, 144, 0.3);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: "Georgia", serif;
+}
+
+.secondaryBtn:hover {
+  border-color: #b8a990;
+  background: rgba(184, 169, 144, 0.05);
+}

@@ -59,6 +59,12 @@ def main() -> None:
         default=None,
         help="Resume training from a linear checkpoint.",
     )
+    parser.add_argument(
+        "--artifacts-path",
+        type=Path,
+        default=None,
+        help="Optional directory for per-game training artifacts.",
+    )
     args = parser.parse_args()
 
     spec = _load_spec(args.spec) if args.spec else None
@@ -85,6 +91,7 @@ def main() -> None:
             "opponents": [spec.to_mapping() for spec in config.opponents],
             "opponent_weights": list(config.opponent_weights),
             "learner_seats": list(config.learner_seats) if config.learner_seats else None,
+            "artifacts_path": config.artifacts_path,
         },
         "metrics": {
             "average_reward": result.average_reward,
@@ -115,6 +122,7 @@ def _resolve_config(args: argparse.Namespace, spec: LinearTrainSpec | None) -> L
         epsilon=args.epsilon,
         learning_rate=args.learning_rate,
         log_every=args.log_every,
+        artifacts_path=str(args.artifacts_path) if args.artifacts_path else None,
     )
 
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import csv
+import json
 from pathlib import Path
 
 import numpy as np
@@ -54,6 +56,10 @@ class _TerminalEnv:
         """Steps should never occur for this stub."""
         del player_id, action
         raise AssertionError("step should not be called")
+
+    def game_result(self) -> object:
+        """Return a scored terminal result."""
+        return RulesEngine.score_game(self._state)
 
 
 def _make_state() -> GameState:
@@ -130,6 +136,37 @@ def test_linear_training_handles_terminal_without_actions(monkeypatch: object) -
     assert result.games == 1
 
 
+def test_linear_training_progress_bar_uses_game_total(monkeypatch: object) -> None:
+    """Linear training progress bar uses game count and ETA-friendly formatting."""
+    from highsociety.ml.training import linear_train
+
+    monkeypatch.setattr(linear_train, "EnvAdapter", _TerminalEnv)
+    progress_kwargs: dict[str, object] = {}
+
+    def _fake_tqdm(iterable: range, *args: object, **kwargs: object) -> range:
+        del args
+        progress_kwargs.update(kwargs)
+        return iterable
+
+    monkeypatch.setattr(linear_train, "tqdm", _fake_tqdm)
+    config = linear_train.LinearTrainingConfig(
+        num_games=5,
+        player_count=3,
+        seed=1,
+        epsilon=0.2,
+        learning_rate=0.05,
+    )
+
+    result = linear_train.train_linear_self_play(config)
+
+    assert result.games == 5
+    assert progress_kwargs["total"] == 5
+    assert progress_kwargs["unit"] == "run"
+    bar_format = str(progress_kwargs["bar_format"])
+    assert "{elapsed}" in bar_format
+    assert "{remaining}" in bar_format
+
+
 def test_linear_training_with_opponents() -> None:
     """Training supports sampling opponent bots."""
     from highsociety.ml.training.linear_train import LinearTrainingConfig, train_linear_self_play
@@ -146,3 +183,38 @@ def test_linear_training_with_opponents() -> None:
     result = train_linear_self_play(config)
 
     assert result.games == 1
+
+
+def test_linear_training_writes_per_game_artifacts(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    """Linear training writes per-game artifact CSV/JSON when configured."""
+    from highsociety.ml.training import linear_train
+
+    monkeypatch.setattr(linear_train, "EnvAdapter", _TerminalEnv)
+    artifacts_path = tmp_path / "linear_history"
+    config = linear_train.LinearTrainingConfig(
+        num_games=2,
+        player_count=3,
+        seed=1,
+        epsilon=0.2,
+        learning_rate=0.05,
+        artifacts_path=str(artifacts_path),
+    )
+
+    result = linear_train.train_linear_self_play(config)
+
+    assert result.games == 2
+    summary_path = artifacts_path / "training_summary.json"
+    games_path = artifacts_path / "training_games.csv"
+    players_path = artifacts_path / "training_players.csv"
+    assert summary_path.exists()
+    assert games_path.exists()
+    assert players_path.exists()
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert summary["games_total"] == 2
+    assert summary["games_logged"] == 2
+    with players_path.open("r", encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    assert len(rows) == config.num_games * config.player_count
+    assert all("cumulative_poorest" in row for row in rows)

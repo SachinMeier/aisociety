@@ -66,3 +66,28 @@ def test_env_adapter_exposes_legal_actions() -> None:
     obs = env.observe(current)
     expected_obs = build_observation(env.get_state(), current)
     assert obs == expected_obs
+
+
+def test_env_adapter_game_result_is_available_at_terminal() -> None:
+    """Env adapter exposes final scoring even when terminal is reached between steps."""
+    env = EnvAdapter(player_count=3)
+    env.reset(seed=2)
+    for _ in range(200):
+        acted = False
+        for player_id in range(3):
+            legal = env.legal_actions(player_id)
+            if not legal:
+                continue
+            acted = True
+            pass_action = next((item for item in legal if item.kind == ActionKind.PASS), legal[0])
+            _state, _reward, done, info = env.step(player_id, pass_action)
+            if done:
+                assert info.result == env.game_result()
+                return
+            break
+        if not acted:
+            assert env.get_state().game_over
+            result = env.game_result()
+            assert isinstance(result.winners, tuple)
+            return
+    raise AssertionError("Expected game to reach a terminal state")

@@ -76,9 +76,9 @@ class ActionSpace:
         """Create an action space from a config mapping."""
         money_values = config.get("money_values", ALLOWED_MONEY_VALUES)
         possession_values = config.get("possession_values", _DEFAULT_POSSESSION_VALUES)
-        if not isinstance(money_values, list | tuple):
+        if not isinstance(money_values, (list, tuple)):
             raise ValueError("money_values must be a list")
-        if not isinstance(possession_values, list | tuple):
+        if not isinstance(possession_values, (list, tuple)):
             raise ValueError("possession_values must be a list")
         return ActionSpace(
             money_values=tuple(int(value) for value in money_values),

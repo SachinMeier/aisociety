@@ -9,19 +9,29 @@ from typing import Any, Mapping
 
 import numpy as np
 
+try:  # pragma: no cover - tqdm is optional in minimal envs
+    from tqdm.auto import tqdm
+except ImportError:  # pragma: no cover
+    def tqdm(iterable: range, *args: object, **kwargs: object) -> range:
+        """Fallback progress wrapper when tqdm is unavailable."""
+        del args, kwargs
+        return iterable
+
 from highsociety.app.env_adapter import EnvAdapter
 from highsociety.app.observations import Observation
 from highsociety.domain.actions import Action
 from highsociety.domain.errors import InvalidState
-from highsociety.domain.rules import GameResult, RulesEngine
-from highsociety.domain.state import GameState
+from highsociety.domain.rules import GameResult
+from highsociety.domain.state import GameState, PlayerState
 from highsociety.ml.encoders.linear import LinearFeatureEncoder
 from highsociety.ml.models.linear import LinearModel
+from highsociety.ml.training.artifacts import TrainingArtifactLogger
 from highsociety.ops.spec import PlayerSpec
 from highsociety.players.base import Player
 from highsociety.players.registry import PlayerRegistry, build_default_registry
 
 logger = logging.getLogger(__name__)
+_PROGRESS_BAR_FORMAT = "{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]"
 
 
 @dataclass(frozen=True)
@@ -37,6 +47,7 @@ class LinearTrainingConfig:
     opponents: tuple[PlayerSpec, ...] = ()
     opponent_weights: tuple[float, ...] = ()
     learner_seats: tuple[int, ...] | None = None
+    artifacts_path: str | None = None
 
     def __post_init__(self) -> None:
         """Validate configuration values."""
@@ -76,6 +87,7 @@ class LinearTrainSpec:
     opponents: tuple[PlayerSpec, ...] = ()
     opponent_weights: tuple[float, ...] = ()
     learner_seats: tuple[int, ...] | None = None
+    artifacts_path: str | None = None
 
     def to_config(self) -> LinearTrainingConfig:
         """Convert the spec to a training config."""
@@ -89,6 +101,7 @@ class LinearTrainSpec:
             opponents=self.opponents,
             opponent_weights=self.opponent_weights,
             learner_seats=self.learner_seats,
+            artifacts_path=self.artifacts_path,
         )
 
     def to_mapping(self) -> dict[str, object]:
@@ -105,6 +118,7 @@ class LinearTrainSpec:
             "opponents": [spec.to_mapping() for spec in self.opponents],
             "opponent_weights": list(self.opponent_weights),
             "learner_seats": list(self.learner_seats) if self.learner_seats else None,
+            "artifacts_path": self.artifacts_path,
         }
 
     @staticmethod
@@ -137,6 +151,7 @@ class LinearTrainSpec:
             opponents=opponents,
             opponent_weights=weights,
             learner_seats=learner_seats,
+            artifacts_path=_coerce_optional_str(data.get("artifacts_path")),
         )
 
 
@@ -157,6 +172,8 @@ class _EpisodeTracker:
 
     trajectories: dict[int, list[np.ndarray]]
     winners: tuple[int, ...] | None = None
+    result: GameResult | None = None
+    final_players: tuple[PlayerState, ...] = ()
 
 
 def train_linear_self_play(
@@ -171,40 +188,70 @@ def train_linear_self_play(
     rng = random.Random(config.seed)
     registry = registry or build_default_registry()
     learner_seats = _resolve_learner_seats(config)
+    artifact_logger = _training_artifact_logger(config, learner_seats)
 
     total_winner_slots = 0
     total_reward = 0.0
-    for game_index in range(config.num_games):
-        opponents = _sample_opponents(config, rng, registry, learner_seats)
-        tracker = _run_episode(
-            config=config,
-            encoder=encoder,
-            model=model,
-            rng=rng,
-            seed=config.seed + game_index,
-            opponents=opponents,
-            learner_seats=learner_seats,
-        )
-        winners = tracker.winners or ()
-        total_winner_slots += len(winners)
-        for player_id, features_list in tracker.trajectories.items():
-            reward = 1.0 if player_id in winners else 0.0
-            total_reward += reward
-            for features in features_list:
-                model.update(features, reward, config.learning_rate)
-        if config.log_every and (game_index + 1) % config.log_every == 0:
-            logger.info("Completed %s games", game_index + 1)
+    try:
+        for game_index in tqdm(
+            range(config.num_games),
+            total=config.num_games,
+            desc="Linear training",
+            unit="run",
+            bar_format=_PROGRESS_BAR_FORMAT,
+            dynamic_ncols=True,
+        ):
+            opponents = _sample_opponents(config, rng, registry, learner_seats)
+            game_seed = config.seed + game_index
+            tracker = _run_episode(
+                config=config,
+                encoder=encoder,
+                model=model,
+                rng=rng,
+                seed=game_seed,
+                opponents=opponents,
+                learner_seats=learner_seats,
+            )
+            if artifact_logger is not None and tracker.result is not None:
+                artifact_logger.record_game(
+                    game_index=game_index + 1,
+                    seed=game_seed,
+                    result=tracker.result,
+                    players=tracker.final_players,
+                )
+            winners = tracker.winners or ()
+            total_winner_slots += len(winners)
+            for player_id, features_list in tracker.trajectories.items():
+                reward = 1.0 if player_id in winners else 0.0
+                total_reward += reward
+                for features in features_list:
+                    model.update(features, reward, config.learning_rate)
+            if config.log_every and (game_index + 1) % config.log_every == 0:
+                logger.info("Completed %s games", game_index + 1)
 
-    denom = float(config.num_games * max(1, len(learner_seats)))
-    average_reward = total_reward / denom
-    average_winners = total_winner_slots / float(config.num_games)
-    return LinearTrainingResult(
-        model=model,
-        encoder=encoder,
-        games=config.num_games,
-        average_reward=average_reward,
-        average_winners=average_winners,
-    )
+        denom = float(config.num_games * max(1, len(learner_seats)))
+        average_reward = total_reward / denom
+        average_winners = total_winner_slots / float(config.num_games)
+        result = LinearTrainingResult(
+            model=model,
+            encoder=encoder,
+            games=config.num_games,
+            average_reward=average_reward,
+            average_winners=average_winners,
+        )
+        if artifact_logger is not None:
+            artifact_logger.finalize(
+                total_games=config.num_games,
+                training_metrics={
+                    "games": result.games,
+                    "average_reward": result.average_reward,
+                    "average_winners": result.average_winners,
+                },
+            )
+        return result
+    finally:
+        if artifact_logger is not None:
+            artifact_logger.close()
 
 
 def _run_episode(
@@ -222,10 +269,12 @@ def _run_episode(
     _reset_opponents(opponents, seed, config.player_count)
     trajectories: dict[int, list[np.ndarray]] = {pid: [] for pid in learner_seats}
     winners: tuple[int, ...] | None = None
+    result: GameResult | None = None
     while True:
         state = env.get_state()
         if state.game_over:
-            winners = _score_fallback(state).winners
+            result = env.game_result()
+            winners = result.winners
             break
         current_player = _current_player_id(state)
         observation = env.observe(current_player)
@@ -233,7 +282,8 @@ def _run_episode(
         if not legal_actions:
             state_after = env.get_state()
             if state_after.game_over:
-                winners = _score_fallback(state_after).winners
+                result = env.game_result()
+                winners = result.winners
                 break
             raise InvalidState("No legal actions available during training")
         if current_player in opponents:
@@ -248,14 +298,20 @@ def _run_episode(
                 epsilon=config.epsilon,
             )
             trajectories[current_player].append(features)
-        _state, _reward, done, info = env.step(current_player, action)
+        _state, _reward, done, _ = env.step(current_player, action)
         if done:
-            if info.result is None:
-                winners = _score_fallback(env.get_state()).winners
-            else:
-                winners = info.result.winners
+            result = env.game_result()
+            winners = result.winners
             break
-    return _EpisodeTracker(trajectories=trajectories, winners=winners)
+    if result is None:
+        result = env.game_result()
+    final_players = tuple(env.get_state().players)
+    return _EpisodeTracker(
+        trajectories=trajectories,
+        winners=winners,
+        result=result,
+        final_players=final_players,
+    )
 
 
 def _select_action(
@@ -293,11 +349,6 @@ def _current_player_id(state: GameState) -> int:
     return state.round.turn_player
 
 
-def _score_fallback(state: GameState) -> GameResult:
-    """Score the game state directly if the env does not provide a result."""
-    return RulesEngine.score_game(state)
-
-
 def _resolve_learner_seats(config: LinearTrainingConfig) -> tuple[int, ...]:
     """Determine which seats are controlled by the learning model."""
     if config.learner_seats is not None:
@@ -305,6 +356,34 @@ def _resolve_learner_seats(config: LinearTrainingConfig) -> tuple[int, ...]:
     if config.opponents:
         return (0,)
     return tuple(range(config.player_count))
+
+
+def _training_artifact_logger(
+    config: LinearTrainingConfig,
+    learner_seats: tuple[int, ...],
+) -> TrainingArtifactLogger | None:
+    """Create a training artifact logger when an output path is configured."""
+    if not config.artifacts_path:
+        return None
+    config_mapping: dict[str, object] = {
+        "num_games": config.num_games,
+        "player_count": config.player_count,
+        "seed": config.seed,
+        "epsilon": config.epsilon,
+        "learning_rate": config.learning_rate,
+        "log_every": config.log_every,
+        "opponents": [spec.to_mapping() for spec in config.opponents],
+        "opponent_weights": list(config.opponent_weights),
+        "learner_seats": list(learner_seats),
+        "artifacts_path": config.artifacts_path,
+    }
+    return TrainingArtifactLogger(
+        config.artifacts_path,
+        bot_type="linear",
+        learner_seats=learner_seats,
+        player_count=config.player_count,
+        spec=config_mapping,
+    )
 
 
 def _sample_opponents(

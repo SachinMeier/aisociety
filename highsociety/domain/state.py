@@ -61,6 +61,15 @@ class PendingDiscard:
     options: tuple[int, ...]
 
 
+@dataclass(frozen=True)
+class RoundRecord:
+    """Record of a completed auction round."""
+
+    card: StatusCard
+    winner_id: int
+    coins_spent: tuple[int, ...]
+
+
 @dataclass
 class GameState:
     players: list[PlayerState]
@@ -72,6 +81,7 @@ class GameState:
     game_over: bool = False
     starting_player: int = 0
     pending_discard: PendingDiscard | None = None
+    round_history: list[RoundRecord] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if not (3 <= len(self.players) <= 5):

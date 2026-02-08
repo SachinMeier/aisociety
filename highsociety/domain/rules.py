@@ -16,7 +16,7 @@ from .cards import (
     default_status_deck,
 )
 from .errors import InvalidAction, InvalidState
-from .state import GameState, PendingDiscard, PlayerState, RoundState
+from .state import GameState, PendingDiscard, PlayerState, RoundRecord, RoundState
 
 
 @dataclass(frozen=True)
@@ -197,6 +197,10 @@ class RulesEngine:
         round_state = state.round
         if round_state is None:
             raise InvalidState("No active round")
+        coins_spent = tuple(c.value for c in winner.open_bid) if round_state.any_bid else ()
+        state.round_history.append(
+            RoundRecord(card=round_state.card, winner_id=winner.id, coins_spent=coins_spent)
+        )
         if round_state.any_bid:
             state.money_discard.extend(winner.open_bid)
             winner.money_discarded.extend(winner.open_bid)
@@ -211,6 +215,9 @@ class RulesEngine:
         round_state = state.round
         if round_state is None:
             raise InvalidState("No active round")
+        state.round_history.append(
+            RoundRecord(card=round_state.card, winner_id=passer.id, coins_spent=())
+        )
         round_state.first_passer = passer.id
         passer.hand.extend(passer.open_bid)
         passer.open_bid.clear()

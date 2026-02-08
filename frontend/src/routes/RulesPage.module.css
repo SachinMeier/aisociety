@@ -1,0 +1,270 @@
+.container {
+  min-height: 100vh;
+  padding: 2rem 1rem 4rem;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.header {
+  text-align: center;
+  padding: 2rem 0 3rem;
+  margin-bottom: 2.5rem;
+}
+
+.crownIcon {
+  font-size: 3rem;
+  color: #d4af37;
+  filter: drop-shadow(0 2px 8px rgba(212, 175, 55, 0.5));
+  line-height: 1;
+  margin-bottom: 0.5rem;
+}
+
+.headerDivider {
+  margin-top: 1.5rem;
+  justify-content: center;
+}
+
+.title {
+  font-size: 3.5rem;
+  font-weight: 700;
+  color: #d4af37;
+  text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.5);
+  margin-bottom: 0.25rem;
+}
+
+.tagline {
+  font-size: 1.2rem;
+  color: #f0e6d3;
+  font-style: italic;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+}
+
+.credit {
+  font-size: 0.95rem;
+  color: #8b7355;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+}
+
+.section {
+  padding: 1.75rem 2rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.sectionTitle {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #5a3a10;
+  margin-bottom: 0.5rem;
+  letter-spacing: 0.04em;
+}
+
+.text {
+  font-size: 1rem;
+  line-height: 1.7;
+  color: #3a2a15;
+}
+
+.coinRow {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+
+.cardRow {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+
+.cardGroup {
+  margin-bottom: 1.25rem;
+}
+
+.cardGroup:last-child {
+  margin-bottom: 0;
+}
+
+.cardType {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #2c1810;
+  margin-bottom: 0.35rem;
+}
+
+.cardCount {
+  font-weight: 400;
+  font-size: 0.9rem;
+  color: #6b5a40;
+}
+
+.list {
+  list-style: none;
+  padding-left: 0;
+}
+
+.list li {
+  font-size: 1rem;
+  color: #3a2a15;
+  padding: 0.35rem 0;
+  padding-left: 1.5rem;
+  position: relative;
+}
+
+.list li::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  color: #8b6914;
+  font-weight: bold;
+}
+
+.list li strong {
+  color: #2c1810;
+}
+
+.ruleBlock {
+  display: flex;
+  gap: 1.25rem;
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+}
+
+.ruleBlock:last-child {
+  margin-bottom: 0;
+}
+
+.ruleCoin {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 35% 35%, #fff4c2 0%, #f0d060 40%, #c8a830 80%, #a08020 100%);
+  color: #5a4a10;
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-family: "Georgia", serif;
+  text-transform: lowercase;
+  border-radius: 50%;
+  border: 2px solid #8a6d1b;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2), inset 0 1px 2px rgba(255, 255, 255, 0.5);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.ruleTitle {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #2c1810;
+  margin-bottom: 0.25rem;
+}
+
+.scoringBox {
+  background: rgba(0, 0, 0, 0.06);
+  border: 1px solid #b8a480;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  margin-top: 1rem;
+}
+
+.scoringBox p {
+  font-size: 0.95rem;
+  color: #3a2a15;
+  padding: 0.3rem 0;
+}
+
+.scoringBox strong {
+  color: #5a3a10;
+}
+
+.tipsList {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.tipsList li {
+  font-size: 1rem;
+  color: #3a2a15;
+  padding-left: 2rem;
+  position: relative;
+  line-height: 1.5;
+}
+
+.tipsList li::before {
+  content: "♠";
+  position: absolute;
+  left: 0;
+  color: #8b6914;
+  font-size: 1.1rem;
+}
+
+.footer {
+  text-align: center;
+  padding-top: 3rem;
+}
+
+.backButton {
+  padding: 0.85rem 2.5rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1a3a1a;
+  background: linear-gradient(135deg, #d4af37, #f0d060);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.backButton:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+
+.backButton:active {
+  transform: translateY(0);
+}
+
+/* Mobile adjustments */
+@media (max-width: 600px) {
+  .container {
+    padding: 1rem 0.75rem 3rem;
+  }
+
+  .title {
+    font-size: 2.5rem;
+  }
+
+  .tagline {
+    font-size: 1rem;
+  }
+
+  .section {
+    padding: 1.25rem 1.25rem;
+  }
+
+  .sectionTitle {
+    font-size: 1.3rem;
+  }
+
+  .ruleBlock {
+    gap: 1rem;
+  }
+
+  .ruleCoin {
+    width: 40px;
+    height: 40px;
+    font-size: 0.6rem;
+  }
+}
