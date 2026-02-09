@@ -18,7 +18,7 @@ from highsociety.ops.cli import execute_spec, load_spec, resolve_output_dir
 from highsociety.ops.metrics import compute_summary
 from highsociety.players.colors import DEFAULT_BOT_COLOR, resolve_bot_color
 
-_TRAIN_BOT_TYPES = ("mlp", "linear")
+_TRAIN_BOT_TYPES = ("mlp", "linear", "hierarchical")
 _TRAIN_MLP_ACTIVATIONS = ("relu", "tanh", "gelu")
 _TRAIN_DEVICES = ("cpu", "cuda", "mps")
 _STOP_GRACE_SECONDS = 10
@@ -144,6 +144,8 @@ def _training_command(bot_type: str, spec_path: Path) -> list[str]:
         module = "scripts.train"
     elif bot_type == "linear":
         module = "scripts.train_linear"
+    elif bot_type == "hierarchical":
+        module = "scripts.train_hierarchical"
     else:
         raise ValueError(f"Unsupported bot type: {bot_type}")
     return [sys.executable, "-m", module, "--spec", str(spec_path)]
@@ -788,7 +790,7 @@ def _reset_build_run_state(streamlit) -> None:
 
 def _page_run_from_spec(streamlit) -> None:
     """Run a spec selected from the runs folder."""
-    streamlit.subheader("Run from spec")
+    streamlit.subheader("Run an Evaluation")
     session_state = _session_state(streamlit)
     run_error = _pop_session_message(streamlit, "run_spec_error")
     if run_error:
@@ -863,7 +865,7 @@ def _page_run_from_spec(streamlit) -> None:
 
 def _page_build_run(streamlit) -> None:
     """Build a spec via GUI and run it."""
-    streamlit.subheader("Build a run spec")
+    streamlit.subheader("Build an Evaluation")
     session_state = _session_state(streamlit)
     build_error = _pop_session_message(streamlit, "build_run_error")
     if build_error:
@@ -1137,7 +1139,7 @@ def _page_build_run(streamlit) -> None:
 
 def _page_train_bots(streamlit) -> None:
     """Build training specs and launch learning bots in the background."""
-    streamlit.subheader("Train learning bots")
+    streamlit.subheader("Train bots")
     session_state = _session_state(streamlit)
     train_error = _pop_session_message(streamlit, "train_bot_error")
     train_message = _pop_session_message(streamlit, "train_bot_message")
@@ -1156,10 +1158,17 @@ def _page_train_bots(streamlit) -> None:
     else:
         _info_box(streamlit, "Configure a training spec and start a background job.")
 
+    def _format_bot_type(value: str) -> str:
+        if value == "mlp":
+            return "MLP"
+        if value == "hierarchical":
+            return "Hierarchical"
+        return "Linear RL"
+
     bot_type = streamlit.selectbox(
         "Learning bot type",
         options=_TRAIN_BOT_TYPES,
-        format_func=lambda value: "MLP" if value == "mlp" else "Linear RL",
+        format_func=_format_bot_type,
         key="train_bot_type",
     )
     checkpoint_name_key = f"train_checkpoint_name_{bot_type}"
@@ -1337,6 +1346,132 @@ def _page_train_bots(streamlit) -> None:
                 key="train_mlp_resume",
             )
             submitted = streamlit.form_submit_button("Start background training")
+        elif bot_type == "hierarchical":
+            streamlit.markdown("**Hierarchical settings**")
+            episodes = streamlit.number_input(
+                "Episodes",
+                min_value=1,
+                value=50000,
+                step=1000,
+                key="train_hierarchical_episodes",
+            )
+            streamlit.caption("Total self-play episodes for training.")
+            batch_size = streamlit.number_input(
+                "Batch size",
+                min_value=1,
+                value=4,
+                step=1,
+                key="train_hierarchical_batch_size",
+            )
+            streamlit.caption("Episodes per gradient update (GAE computed over batch).")
+            learning_rate = streamlit.number_input(
+                "Learning rate",
+                min_value=0.000001,
+                value=0.001,
+                step=0.0001,
+                format="%.6f",
+                key="train_hierarchical_learning_rate",
+            )
+            streamlit.caption("Scales each optimizer update.")
+            use_lr_decay = streamlit.checkbox(
+                "Use learning-rate decay",
+                value=True,
+                key="train_hierarchical_use_lr_decay",
+            )
+            learning_rate_final: float | None = None
+            if use_lr_decay:
+                default_final = max(0.000001, float(learning_rate) * 0.1)
+                learning_rate_final = streamlit.number_input(
+                    "Final learning rate",
+                    min_value=0.000001,
+                    max_value=float(learning_rate),
+                    value=min(float(learning_rate), default_final),
+                    step=0.0001,
+                    format="%.6f",
+                    key="train_hierarchical_learning_rate_final",
+                )
+            trunk_sizes_raw = streamlit.text_input(
+                "Trunk sizes (comma-separated)",
+                value="256,256",
+                key="train_hierarchical_trunk_sizes",
+            )
+            streamlit.caption("Shared trunk layer widths for hierarchical model.")
+            activation = streamlit.selectbox(
+                "Activation",
+                options=_TRAIN_MLP_ACTIVATIONS,
+                index=0,
+                key="train_hierarchical_activation",
+            )
+            gae_lambda = streamlit.number_input(
+                "GAE lambda",
+                min_value=0.0,
+                max_value=1.0,
+                value=0.95,
+                step=0.01,
+                format="%.2f",
+                key="train_hierarchical_gae_lambda",
+            )
+            streamlit.caption("GAE parameter; 1.0 is Monte Carlo, 0.0 is TD(0).")
+            discount = streamlit.number_input(
+                "Discount factor",
+                min_value=0.0,
+                max_value=1.0,
+                value=0.99,
+                step=0.01,
+                format="%.2f",
+                key="train_hierarchical_discount",
+            )
+            streamlit.caption("Future reward discount (gamma).")
+            temperature = streamlit.number_input(
+                "Temperature",
+                min_value=0.0,
+                value=1.0,
+                step=0.1,
+                key="train_hierarchical_temperature",
+            )
+            streamlit.caption("Policy sampling randomness; 0 is greedy.")
+            entropy_coef = streamlit.number_input(
+                "Entropy coefficient",
+                min_value=0.0,
+                value=0.01,
+                step=0.005,
+                format="%.4f",
+                key="train_hierarchical_entropy_coef",
+            )
+            value_coef = streamlit.number_input(
+                "Value coefficient",
+                min_value=0.0,
+                value=0.5,
+                step=0.1,
+                key="train_hierarchical_value_coef",
+            )
+            max_grad_norm = streamlit.number_input(
+                "Max gradient norm",
+                min_value=0.1,
+                value=1.0,
+                step=0.1,
+                key="train_hierarchical_max_grad_norm",
+            )
+            checkpoint_every = streamlit.number_input(
+                "Checkpoint every N episodes",
+                min_value=1,
+                value=1000,
+                step=100,
+                key="train_hierarchical_checkpoint_every",
+            )
+            device = streamlit.selectbox(
+                "Device",
+                options=_TRAIN_DEVICES,
+                index=2 if len(_TRAIN_DEVICES) > 2 else 0,  # Default to mps
+                key="train_hierarchical_device",
+            )
+            streamlit.caption("Torch device (mps recommended for Apple Silicon).")
+            resume = streamlit.text_input(
+                "Resume checkpoint (optional)",
+                value="",
+                key="train_hierarchical_resume",
+            )
+            submitted = streamlit.form_submit_button("Start background training")
         else:
             streamlit.markdown("**Linear RL settings**")
             num_games = streamlit.number_input(
@@ -1453,6 +1588,37 @@ def _page_train_bots(streamlit) -> None:
                 "temperature": float(temperature),
                 "entropy_coef": float(entropy_coef),
                 "value_coef": float(value_coef),
+                "max_grad_norm": float(max_grad_norm),
+                "checkpoint_path": str(staging_checkpoint_path),
+                "checkpoint_every": int(checkpoint_every),
+                "artifacts_path": str(training_artifacts_path),
+                "device": str(device),
+            }
+            if learning_rate_final is not None:
+                spec_data["learning_rate_final"] = float(learning_rate_final)
+        elif bot_type == "hierarchical":
+            trunk_sizes, trunk_error = _parse_int_csv(
+                trunk_sizes_raw,
+                "Trunk sizes",
+                allow_empty=False,
+            )
+            if trunk_error:
+                errors.append(trunk_error)
+            elif trunk_sizes is not None and any(size <= 0 for size in trunk_sizes):
+                errors.append("Trunk sizes must be positive integers.")
+            spec_data = {
+                "episodes": int(episodes),
+                "seed": int(train_seed),
+                "player_count": int(train_player_count),
+                "learning_rate": float(learning_rate),
+                "trunk_sizes": list(trunk_sizes or ()),
+                "activation": activation,
+                "temperature": float(temperature),
+                "entropy_coef": float(entropy_coef),
+                "value_coef": float(value_coef),
+                "gae_lambda": float(gae_lambda),
+                "discount": float(discount),
+                "batch_size": int(batch_size),
                 "max_grad_norm": float(max_grad_norm),
                 "checkpoint_path": str(staging_checkpoint_path),
                 "checkpoint_every": int(checkpoint_every),
@@ -1611,7 +1777,7 @@ def _page_train_bots(streamlit) -> None:
 
 def _page_inspect_runs(streamlit) -> None:
     """Inspect existing run outputs."""
-    streamlit.subheader("Inspect existing runs")
+    streamlit.subheader("Inspect Evaluations")
     runs_root = streamlit.text_input("Runs root", value="runs", key="inspect_runs_root")
     if not runs_root:
         _info_box(streamlit, "Enter a runs root to browse existing runs.")
@@ -2557,7 +2723,7 @@ def run_dashboard() -> None:
         import streamlit
     except ImportError as exc:
         raise ImportError("streamlit is required to run the dashboard") from exc
-    streamlit.title("High Society Run + Train Dashboard")
+    streamlit.title("High Society Dashboard")
     _apply_theme(streamlit)
     page = _sidebar_nav(streamlit)
     if page == "Run from spec":

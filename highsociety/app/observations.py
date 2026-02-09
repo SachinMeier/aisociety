@@ -4,11 +4,19 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass
+from functools import lru_cache
 
 from highsociety.domain.cards import MoneyCard, StatusCard, StatusKind
 from highsociety.domain.errors import InvalidState
 from highsociety.domain.rules import RulesEngine
 from highsociety.domain.state import GameState, PlayerState, RoundState
+
+
+# Cache the full status deck - it never changes
+@lru_cache(maxsize=1)
+def _cached_status_deck() -> tuple[StatusCard, ...]:
+    """Return a cached copy of the full status deck."""
+    return tuple(RulesEngine.create_status_deck())
 
 
 @dataclass(frozen=True)
@@ -138,7 +146,7 @@ def _remaining_counts(state: GameState) -> dict[str, int]:
 
 def _revealed_status_cards(state: GameState) -> tuple[StatusCard, ...]:
     """Return a stable ordering of revealed status cards."""
-    full_deck = RulesEngine.create_status_deck()
+    full_deck = _cached_status_deck()  # Use cached deck instead of creating new one
     remaining_counts = Counter(state.status_deck)
     revealed: list[StatusCard] = []
     for card in full_deck:

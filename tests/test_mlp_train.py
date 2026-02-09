@@ -51,6 +51,10 @@ class _TerminalEnv:
     def game_result(self) -> object:
         return RulesEngine.score_game(self._state)
 
+    def cleanup(self) -> None:
+        """No-op cleanup for test stub."""
+        pass
+
 
 class _RecordingOpponent:
     """Simple opponent that tracks reset and end notifications."""
@@ -124,6 +128,7 @@ def test_mlp_training_samples_configured_opponents(monkeypatch: object) -> None:
     spec = mlp_train.MLPTrainSpec(
         episodes=3,
         player_count=4,
+        batch_size=1,
         opponents=(
             PlayerSpec(type="random"),
             PlayerSpec(type="heuristic", params={"style": "balanced"}),
@@ -134,9 +139,11 @@ def test_mlp_training_samples_configured_opponents(monkeypatch: object) -> None:
     result = mlp_train.train_mlp(spec, registry=registry)
 
     assert result.episodes == 3
-    assert len(registry.created) == spec.episodes * (spec.player_count - 1)
-    assert all(player.reset_calls == 1 for player in registry.players)
-    assert all(player.end_calls == 1 for player in registry.players)
+    # Opponents are created once per seat and reused across episodes
+    assert len(registry.created) == spec.player_count - 1
+    # Each opponent is reset once per episode
+    assert all(player.reset_calls == spec.episodes for player in registry.players)
+    assert all(player.end_calls == spec.episodes for player in registry.players)
 
 
 def test_mlp_training_progress_bar_uses_episode_total(monkeypatch: object) -> None:
@@ -150,13 +157,13 @@ def test_mlp_training_progress_bar_uses_episode_total(monkeypatch: object) -> No
         return iterable
 
     monkeypatch.setattr(mlp_train, "tqdm", _fake_tqdm)
-    spec = mlp_train.MLPTrainSpec(episodes=4, player_count=3)
+    spec = mlp_train.MLPTrainSpec(episodes=4, player_count=3, batch_size=1)
 
     result = mlp_train.train_mlp(spec)
 
     assert result.episodes == 4
     assert progress_kwargs["total"] == 4
-    assert progress_kwargs["unit"] == "run"
+    assert progress_kwargs["unit"] == "batch"
     bar_format = str(progress_kwargs["bar_format"])
     assert "{elapsed}" in bar_format
     assert "{remaining}" in bar_format
@@ -186,6 +193,7 @@ def test_mlp_training_can_resume_from_checkpoint(
     spec = mlp_train.MLPTrainSpec(
         episodes=1,
         player_count=3,
+        batch_size=1,
         hidden_sizes=(128, 128),
         activation="relu",
         resume=str(resume_path),
@@ -203,6 +211,7 @@ def test_mlp_training_writes_per_game_artifacts(tmp_path: Path, monkeypatch: obj
     spec = mlp_train.MLPTrainSpec(
         episodes=2,
         player_count=3,
+        batch_size=1,
         artifacts_path=str(artifacts_path),
     )
 
@@ -211,15 +220,14 @@ def test_mlp_training_writes_per_game_artifacts(tmp_path: Path, monkeypatch: obj
     assert result.episodes == 2
     summary_path = artifacts_path / "training_summary.json"
     games_path = artifacts_path / "training_games.csv"
-    players_path = artifacts_path / "training_players.csv"
     assert summary_path.exists()
     assert games_path.exists()
-    assert players_path.exists()
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
     assert summary["games_total"] == 2
     assert summary["games_logged"] == 2
     assert summary["learner_seats"] == [0]
-    with players_path.open("r", encoding="utf-8", newline="") as handle:
-        rows = list(csv.DictReader(handle))
-    assert len(rows) == spec.episodes * spec.player_count
-    assert all("cumulative_wins" in row for row in rows)
+    # Verify game-level artifacts are logged
+    with games_path.open("r", encoding="utf-8", newline="") as handle:
+        game_rows = list(csv.DictReader(handle))
+    assert len(game_rows) == spec.episodes
+    assert all("winners" in row for row in game_rows)

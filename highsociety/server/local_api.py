@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import pathlib
 from typing import Any, List, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from highsociety.app.local_game_service import LocalGameService, LocalSeatSpec
@@ -167,6 +170,22 @@ def create_app(service: Optional[LocalGameService] = None) -> FastAPI:
         except InvalidState as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return _turn_view_to_response(game_id, view)
+
+    # Serve frontend static files when the built dist/ directory exists.
+    # In Docker / production the frontend is pre-built and copied into the image.
+    dist_dir = pathlib.Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
+    if dist_dir.is_dir():
+        # Serve static assets (JS/CSS/images) under /assets
+        app.mount(
+            "/assets",
+            StaticFiles(directory=str(dist_dir / "assets")),
+            name="static-assets",
+        )
+
+        @app.get("/{full_path:path}")
+        def serve_spa(full_path: str) -> FileResponse:
+            """Serve index.html for all non-API routes (SPA client-side routing)."""
+            return FileResponse(str(dist_dir / "index.html"))
 
     return app
 

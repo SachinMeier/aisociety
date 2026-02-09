@@ -8,8 +8,8 @@
     "output": "checkpoints/linear_v1.pkl",
     "opponents": [
       {"type": "heuristic", "params": {"style": "balanced"}},
-      {"type": "heuristic", "params": {"style": "aggressive"}},
       {"type": "heuristic", "params": {"style": "cautious"}},
+      {"type": "mlp", "checkpoint": "checkpoints/mlp_v3"},
       {"type": "static"}
     ],
     "opponent_weights": [0.25, 0.25, 0.25, 0.25],

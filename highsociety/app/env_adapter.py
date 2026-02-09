@@ -1,4 +1,7 @@
-"""RL-style environment adapter over the game server."""
+"""RL-style environment adapter over the game server.
+
+Optimized with legal action caching to avoid O(2^n) bid enumeration on repeated calls.
+"""
 
 from __future__ import annotations
 
@@ -22,8 +25,32 @@ class StepInfo:
     result: GameResult | None
 
 
+def _state_cache_key(state: GameState, player_id: int) -> tuple:
+    """Build a cache key from state components that affect legal actions."""
+    if state.game_over:
+        return ("game_over", player_id)
+    if state.pending_discard is not None:
+        return ("discard", player_id, tuple(state.pending_discard.options))
+    if state.round is None:
+        return ("no_round", player_id)
+    player = next((p for p in state.players if p.id == player_id), None)
+    if player is None:
+        return ("no_player", player_id)
+    return (
+        "bid",
+        player_id,
+        tuple(c.value for c in player.hand),
+        tuple(c.value for c in player.open_bid),
+        state.round.highest_bid,
+        player.passed,
+    )
+
+
 class EnvAdapter:
-    """Environment wrapper exposing observe/legal/step APIs."""
+    """Environment wrapper exposing observe/legal/step APIs.
+
+    Includes caching for legal_actions() to avoid repeated O(2^n) bid enumeration.
+    """
 
     def __init__(self, player_count: int = 3, server: GameServer | None = None) -> None:
         """Initialize the adapter for a given player count."""
@@ -32,11 +59,19 @@ class EnvAdapter:
         self._player_count = player_count
         self._server = server or GameServer()
         self._game_id: str | None = None
+        self._legal_actions_cache: dict[tuple, list[Action]] = {}
 
     def reset(
         self, seed: int | None = None, starting_player: int | None = None
     ) -> GameState:
         """Start a new game and return its initial state."""
+        # Clean up previous game to prevent memory leaks
+        if self._game_id is not None:
+            self._server.remove_game(self._game_id)
+
+        # Clear legal actions cache for new game
+        self._legal_actions_cache.clear()
+
         manifest = tuple(
             PlayerManifestEntry(name=f"p{idx}", kind="env")
             for idx in range(self._player_count)
@@ -48,6 +83,12 @@ class EnvAdapter:
         )
         return self._server.get_state(self._game_id)
 
+    def cleanup(self) -> None:
+        """Explicitly clean up the current game from memory."""
+        if self._game_id is not None:
+            self._server.remove_game(self._game_id)
+            self._game_id = None
+
     def get_state(self) -> GameState:
         """Return the current game state."""
         return self._server.get_state(self._require_game_id())
@@ -58,13 +99,21 @@ class EnvAdapter:
         return build_observation(self.get_state(), player_id)
 
     def legal_actions(self, player_id: int) -> list[Action]:
-        """Return legal actions for the given player."""
-        return self._server.legal_actions(self._require_game_id(), player_id)
+        """Return legal actions for the given player (cached)."""
+        state = self.get_state()
+        cache_key = _state_cache_key(state, player_id)
+        if cache_key in self._legal_actions_cache:
+            return self._legal_actions_cache[cache_key]
+        actions = self._server.legal_actions(self._require_game_id(), player_id)
+        self._legal_actions_cache[cache_key] = actions
+        return actions
 
     def step(
         self, player_id: int, action: Action
     ) -> tuple[GameState, float, bool, StepInfo]:
         """Apply an action and return (state, reward, done, info)."""
+        # Invalidate cache since state is changing
+        self._legal_actions_cache.clear()
         result = self._server.step(self._require_game_id(), player_id, action)
         state = self.get_state()
         done = state.game_over or result.fatal

@@ -53,15 +53,31 @@ def build_default_registry() -> PlayerRegistry:
 def register_baseline_players(registry: PlayerRegistry) -> None:
     """Register baseline player factories."""
     from highsociety.players.heuristic_bot import HeuristicBot
-    from highsociety.players.mlp_bot import MLPPolicyBot
     from highsociety.players.random_bot import RandomBot
     from highsociety.players.static_bot import StaticBot
 
     registry.register("random", _random_factory(RandomBot))
     registry.register("heuristic", _heuristic_factory(HeuristicBot))
     registry.register("static", _static_factory(StaticBot))
-    registry.register("mlp", _mlp_factory(MLPPolicyBot))
-    registry.register("linear_rl", _linear_rl_factory())
+
+    # ML-based bots require torch/numpy; skip registration when unavailable
+    # so the server can run without heavy ML dependencies.
+    try:
+        from highsociety.players.mlp_bot import MLPPolicyBot
+
+        registry.register("mlp", _mlp_factory(MLPPolicyBot))
+    except ImportError:
+        pass
+    try:
+        registry.register("linear_rl", _linear_rl_factory())
+    except ImportError:
+        pass
+    try:
+        from highsociety.players.hierarchical_bot import HierarchicalBot
+
+        registry.register("hierarchical", _hierarchical_factory(HierarchicalBot))
+    except ImportError:
+        pass
 
 
 def _random_factory(bot_cls: type) -> PlayerFactory:
@@ -148,6 +164,29 @@ def _linear_rl_factory() -> PlayerFactory:
             checkpoint_path=checkpoint,
             epsilon=epsilon,
             seed=seed if isinstance(seed, int) else None,
+        )
+
+    return factory
+
+
+def _hierarchical_factory(bot_cls: type) -> PlayerFactory:
+    """Create a factory for the hierarchical bot."""
+
+    def factory(spec: Mapping[str, Any]) -> Player:
+        params = _coerce_params(spec.get("params"))
+        checkpoint = spec.get("checkpoint") or params.get("checkpoint")
+        if not isinstance(checkpoint, str) or not checkpoint:
+            raise ValueError("hierarchical bot requires a checkpoint path")
+        temperature = float(params.get("temperature", 0.0))
+        seed = params.get("seed")
+        device = params.get("device", "cpu")
+        name = _coerce_name(spec.get("name"), default="hierarchical")
+        return bot_cls(
+            name=name,
+            checkpoint=str(checkpoint),
+            temperature=temperature,
+            seed=seed,
+            device=str(device),
         )
 
     return factory

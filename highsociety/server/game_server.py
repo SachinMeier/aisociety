@@ -130,3 +130,11 @@ class GameServer:
         if game_id not in self._games:
             raise KeyError("Unknown game id")
         return self._games[game_id]
+
+    def remove_game(self, game_id: str) -> None:
+        """Remove a completed game from memory to prevent memory leaks."""
+        self._games.pop(game_id, None)
+
+    def clear_all_games(self) -> None:
+        """Remove all games from memory."""
+        self._games.clear()
