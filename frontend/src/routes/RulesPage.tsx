@@ -102,7 +102,7 @@ export default function RulesPage() {
           <h2 className={styles.sectionTitle}>How to Play</h2>
 
           <div className={styles.ruleBlock}>
-            <div className={styles.ruleCoin}>one</div>
+            <div className={styles.ruleCoin}>1</div>
             <div>
               <h4 className={styles.ruleTitle}>Reveal a Status Card</h4>
               <p className={styles.text}>A status card is flipped. Players will bid to win (or avoid) it.</p>
@@ -110,7 +110,7 @@ export default function RulesPage() {
           </div>
 
           <div className={styles.ruleBlock}>
-            <div className={styles.ruleCoin}>two</div>
+            <div className={styles.ruleCoin}>2</div>
             <div>
               <h4 className={styles.ruleTitle}>Bid or Pass</h4>
               <p className={styles.text}>
@@ -121,7 +121,7 @@ export default function RulesPage() {
           </div>
 
           <div className={styles.ruleBlock}>
-            <div className={styles.ruleCoin}>three</div>
+            <div className={styles.ruleCoin}>3</div>
             <div>
               <h4 className={styles.ruleTitle}>Win the Card</h4>
               <p className={styles.text}>
@@ -139,9 +139,18 @@ export default function RulesPage() {
             That card is <em>not</em> auctioned and scoring begins immediately.
           </p>
           <div className={styles.scoringBox}>
-            <p><strong>Step 1:</strong> The player(s) with the least remaining money is eliminated.</p>
-            <p><strong>Step 2:</strong> Remaining players sum their Possession values, apply Misfortunes, then apply any Titles.</p>
-            <p><strong>Step 3:</strong> The player with the highest status wins. Ties are broken by remaining money and then the highest single possession value.</p>
+            <div className={styles.ruleBlock}>
+              <div className={styles.ruleCoin}>1</div>
+              <p className={styles.text}>The player(s) with the least remaining money is eliminated.</p>
+            </div>
+            <div className={styles.ruleBlock}>
+              <div className={styles.ruleCoin}>2</div>
+              <p className={styles.text}>Remaining players sum their Possession values, apply Misfortunes, then apply any Titles.</p>
+            </div>
+            <div className={styles.ruleBlock}>
+              <div className={styles.ruleCoin}>3</div>
+              <p className={styles.text}>The player with the highest status wins. Ties are broken by remaining money and then the highest single possession value.</p>
+            </div>
           </div>
         </PaperCard>
 

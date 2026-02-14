@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+
 interface HandoffOverlayProps {
   playerName: string;
   onReveal: () => void;
@@ -7,6 +9,17 @@ export default function HandoffOverlay({
   playerName,
   onReveal,
 }: HandoffOverlayProps) {
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        onReveal();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onReveal]);
+
   return (
     <div
       style={{

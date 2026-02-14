@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 
 interface HelpTip {
   label: string;
-  description: string;
+  description: React.ReactNode;
   position: { top?: string; bottom?: string; left?: string; right?: string };
   anchor: "top" | "bottom" | "left" | "right" | "none";
 }
@@ -11,7 +11,7 @@ const TIPS: HelpTip[] = [
   {
     label: "Auction Card",
     description: "This is the card currently up for auction. Bid your coins to win it, or pass to save your money.",
-    position: { top: "42%", left: "50%" },
+    position: { top: "42%", left: "43%" },
     anchor: "top",
   },
   {
@@ -29,14 +29,26 @@ const TIPS: HelpTip[] = [
   {
     label: "Bid & Pass",
     description: "Select coins then press Bid (or Enter) to place your bid. Press Pass (or Space) to drop out of the current auction.",
-    position: { bottom: "8%", right: "22%" },
+    position: { bottom: "1%", right: "22%" },
     anchor: "right",
   },
   {
     label: "Leading Bid",
-    description: "Shows the current highest bid and who placed it. Your bid must exceed this amount to take the lead.",
+    description: "The leading bid will be highlighted with a gold border. Your bid must exceed this amount to take the lead.",
     position: { top: "62%", left: "50%" },
     anchor: "none",
+  },
+  {
+    label: "How to Win",
+    description: (
+      <>
+        The game is simple: Get the most points <b>without</b> being the poorest. See{" "}
+        <a href="/rules" style={{ color: "#d4af37", textDecoration: "underline" }}>rules</a>{" "}
+        for more details.
+      </>
+    ),
+    position: { top: "50%", left: "50%" },
+    anchor: "none" as const,
   },
 ];
 
@@ -119,6 +131,7 @@ export function HelpOverlay({ onClose }: { onClose: () => void }) {
     >
       {/* Tooltip card */}
       <div
+        key={activeTip}
         onClick={(e) => e.stopPropagation()}
         style={{
           position: "absolute",
@@ -130,7 +143,6 @@ export function HelpOverlay({ onClose }: { onClose: () => void }) {
           padding: "16px 20px",
           maxWidth: 300,
           zIndex: 1001,
-          animation: "fadeInCenter 0.2s ease",
           cursor: "default",
           boxShadow: "0 4px 20px rgba(0,0,0,0.4), 0 0 20px rgba(212,175,55,0.1)",
         }}
