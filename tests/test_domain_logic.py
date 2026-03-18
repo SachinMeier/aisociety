@@ -70,36 +70,57 @@ def test_misfortune_first_pass_gets_card():
     assert sorted(discarded) == [1000, 2000]
 
 
-def test_theft_requires_discard_when_possessions_exist():
+def test_theft_auto_discards_lowest_possession():
     deck = [StatusCard(kind=StatusKind.MISFORTUNE, misfortune=MisfortuneKind.THEFT)]
     state = make_game_with_deck(deck)
     player = state.players[0]
-    player.possessions.append(StatusCard(kind=StatusKind.POSSESSION, value=4))
+    player.possessions.extend(
+        [
+            StatusCard(kind=StatusKind.POSSESSION, value=4),
+            StatusCard(kind=StatusKind.POSSESSION, value=2),
+            StatusCard(kind=StatusKind.POSSESSION, value=8),
+        ]
+    )
     rng = random.Random(0)
     RulesEngine.start_round(state, rng)
     RulesEngine.apply_action(state, 0, Action(ActionKind.PASS))
-    assert state.pending_discard is not None
-    RulesEngine.apply_action(state, 0, Action(ActionKind.DISCARD_POSSESSION, possession_value=4))
+    assert player.theft == 0
+    assert player.theft_pending == 0
     assert state.pending_discard is None
-    assert not player.possessions
+    assert sorted(card.value for card in player.possessions) == [4, 8]
+    assert not state.status_discard
 
 
 def test_theft_pending_discards_next_possession():
     deck = [
         StatusCard(kind=StatusKind.MISFORTUNE, misfortune=MisfortuneKind.THEFT),
         StatusCard(kind=StatusKind.POSSESSION, value=9),
+        StatusCard(kind=StatusKind.POSSESSION, value=5),
     ]
     state = make_game_with_deck(deck)
     rng = random.Random(0)
     RulesEngine.start_round(state, rng)
     RulesEngine.apply_action(state, 0, Action(ActionKind.PASS))
+    assert state.players[0].theft == 1
     assert state.players[0].theft_pending == 1
+
     RulesEngine.start_round(state, rng)
     RulesEngine.apply_action(state, 0, Action(ActionKind.BID, cards=(1000,)))
     RulesEngine.apply_action(state, 1, Action(ActionKind.PASS))
     RulesEngine.apply_action(state, 2, Action(ActionKind.PASS))
+
+    # The first gained possession is canceled, and the theft card is consumed.
     assert not state.players[0].possessions
+    assert state.players[0].theft == 0
     assert state.players[0].theft_pending == 0
+    assert not state.status_discard
+
+    # Future possessions are kept (no extra cancel after the theft card is consumed).
+    RulesEngine.start_round(state, rng)
+    RulesEngine.apply_action(state, 0, Action(ActionKind.BID, cards=(2000,)))
+    RulesEngine.apply_action(state, 1, Action(ActionKind.PASS))
+    RulesEngine.apply_action(state, 2, Action(ActionKind.PASS))
+    assert [card.value for card in state.players[0].possessions] == [5]
 
 
 def test_fourth_red_ends_game():

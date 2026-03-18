@@ -16,7 +16,7 @@ from .cards import (
     default_status_deck,
 )
 from .errors import InvalidAction, InvalidState
-from .state import GameState, PendingDiscard, PlayerState, RoundRecord, RoundState
+from .state import GameState, PlayerState, RoundRecord, RoundState
 
 
 @dataclass(frozen=True)
@@ -236,8 +236,8 @@ class RulesEngine:
     def _award_status_card(state: GameState, player: PlayerState, card: StatusCard) -> None:
         if card.kind == StatusKind.POSSESSION:
             if player.theft_pending > 0:
-                state.status_discard.append(card)
                 player.theft_pending -= 1
+                RulesEngine._consume_theft_card(player)
             else:
                 player.possessions.append(card)
             return
@@ -252,14 +252,32 @@ class RulesEngine:
             elif card.misfortune == MisfortuneKind.THEFT:
                 player.theft += 1
                 if player.possessions:
-                    options = tuple(sorted(card.value for card in player.possessions))
-                    state.pending_discard = PendingDiscard(player.id, options)
+                    RulesEngine._discard_lowest_possession(player)
+                    RulesEngine._consume_theft_card(player)
                 else:
                     player.theft_pending += 1
             else:
                 raise InvalidState("Unknown misfortune")
             return
         raise InvalidState("Unknown status card")
+
+    @staticmethod
+    def _discard_lowest_possession(player: PlayerState) -> None:
+        """Discard the lowest-value possession from a player."""
+        if not player.possessions:
+            raise InvalidState("No possessions available to discard")
+        lowest_idx = min(
+            range(len(player.possessions)),
+            key=lambda idx: player.possessions[idx].value or 0,
+        )
+        del player.possessions[lowest_idx]
+
+    @staticmethod
+    def _consume_theft_card(player: PlayerState) -> None:
+        """Discard one active theft card marker after it has been applied."""
+        if player.theft <= 0:
+            raise InvalidState("No theft card available to consume")
+        player.theft -= 1
 
     @staticmethod
     def _apply_discard(state: GameState, player_id: int, action: Action) -> None:
@@ -276,7 +294,6 @@ class RulesEngine:
             raise InvalidAction("Invalid possession to discard")
         for idx, card in enumerate(player.possessions):
             if card.value == value:
-                state.status_discard.append(card)
                 del player.possessions[idx]
                 break
         state.pending_discard = None

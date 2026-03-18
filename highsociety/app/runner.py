@@ -46,36 +46,40 @@ class GameRunner:
             seed=seed,
             starting_player=starting_player,
         )
-        game_config: dict[str, object] = {
-            "seed": seed,
-            "game_id": game_id,
-            "player_count": len(players),
-        }
-        for seat, player in enumerate(players):
-            player.reset(game_config, player_id=seat, seat=seat)
-        while True:
-            state = self._server.get_state(game_id)
-            if state.game_over:
-                break
-            current_player_id = _current_player_id(state)
-            legal = self._server.legal_actions(game_id, current_player_id)
-            state = self._server.get_state(game_id)
-            if state.game_over:
-                break
-            if not legal:
-                raise InvalidState("No legal actions available for current player")
-            observation = build_observation(state, current_player_id)
-            action = players[current_player_id].act(observation, legal)
-            step_result = self._server.step(game_id, current_player_id, action)
-            if step_result.fatal:
-                raise InvalidState(step_result.error or "Fatal game error")
-            if step_result.error:
-                raise InvalidAction(step_result.error)
-        result = self._server.score_game(game_id)
-        for player in players:
-            player.on_game_end(result)
-        final_state = self._server.get_state(game_id)
-        return GameRunnerResult(game_id=game_id, state=final_state, result=result)
+        try:
+            game_config: dict[str, object] = {
+                "seed": seed,
+                "game_id": game_id,
+                "player_count": len(players),
+            }
+            for seat, player in enumerate(players):
+                player.reset(game_config, player_id=seat, seat=seat)
+            while True:
+                state = self._server.get_state(game_id)
+                if state.game_over:
+                    break
+                current_player_id = _current_player_id(state)
+                legal = self._server.legal_actions(game_id, current_player_id)
+                state = self._server.get_state(game_id)
+                if state.game_over:
+                    break
+                if not legal:
+                    raise InvalidState("No legal actions available for current player")
+                observation = build_observation(state, current_player_id)
+                action = players[current_player_id].act(observation, legal)
+                step_result = self._server.step(game_id, current_player_id, action)
+                if step_result.fatal:
+                    raise InvalidState(step_result.error or "Fatal game error")
+                if step_result.error:
+                    raise InvalidAction(step_result.error)
+            result = self._server.score_game(game_id)
+            for player in players:
+                player.on_game_end(result)
+            final_state = self._server.get_state(game_id)
+            return GameRunnerResult(game_id=game_id, state=final_state, result=result)
+        finally:
+            # Avoid retaining finished/failed games in the in-memory server map.
+            self._server.remove_game(game_id)
 
 
 def _current_player_id(state: GameState) -> int:

@@ -3,6 +3,7 @@ import PaperCard from "../components/PaperCard";
 import Coin from "../components/MoneyCard";
 import StatusCard from "../components/StatusCard";
 import Divider from "../components/Divider";
+import CrownIcon from "../components/CrownIcon";
 import type { StatusCardData } from "../types";
 import styles from "./RulesPage.module.css";
 
@@ -31,7 +32,7 @@ export default function RulesPage() {
   return (
     <div className={styles.container}>
       <header className={styles.header}>
-        <div className={styles.crownIcon}>&#9813;</div>
+        <CrownIcon />
         <h1 className={styles.title}>High Society</h1>
         <p className={styles.tagline}>Money Isn't Everything</p>
         <p className={styles.credit}>A Game by Reiner Knizia</p>

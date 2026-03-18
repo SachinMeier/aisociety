@@ -11,11 +11,10 @@ interface PlayerSeatProps {
   position: SeatPosition;
 }
 
-// Fixed heights to prevent layout jitter when content changes
-// Sized for up to 5 coins (36px each + gaps) and 5 status cards (60px each + gaps)
-const BID_AREA_HEIGHT = 90;
-const POSSESSIONS_AREA_HEIGHT = 100;
-const SEAT_WIDTH = 340;
+// Let content determine height — absolute positioning means seats don't affect each other
+const BID_AREA_HEIGHT = 0;
+const POSSESSIONS_AREA_HEIGHT = 0;
+const SEAT_WIDTH = 200;
 
 export default function PlayerSeat({
   player,
@@ -29,15 +28,16 @@ export default function PlayerSeat({
 
   return (
     <div
+      data-testid={`player-seat-${player.id}`}
       style={{
         position: "absolute",
         left: position.left,
         top: position.top,
         transform: ANCHOR_TRANSFORMS[position.anchor],
         display: "flex",
-        flexDirection: "column",
+        flexDirection: position.anchor === "bottom" ? "column-reverse" : "column",
         alignItems: "center",
-        gap: 8,
+        gap: 4,
         width: SEAT_WIDTH,
         minWidth: SEAT_WIDTH,
       }}
@@ -138,6 +138,7 @@ export default function PlayerSeat({
 
       {/* Bid area - fixed height container to prevent layout shift */}
       <div
+        data-testid={`bid-area-${player.id}`}
         style={{
           minHeight: BID_AREA_HEIGHT,
           width: "100%",
@@ -168,7 +169,7 @@ export default function PlayerSeat({
             <div style={{
               display: "flex",
               gap: 4,
-              flexWrap: "wrap",
+              flexWrap: "nowrap",
               justifyContent: "center",
             }}>
               {player.open_bid

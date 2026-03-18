@@ -1,6 +1,5 @@
 // Fixed position layouts for each player count
-// Positions form regular polygons around the center auction card
-// Calculated using: x = 50% + radius * sin(angle), y = 50% - radius * cos(angle)
+// Seats pushed to container edges to maximize clearance from center card area
 
 export type VerticalAnchor = "top" | "center" | "bottom";
 
@@ -15,31 +14,28 @@ export interface SeatPosition {
 // - center: Seat centered on position point
 // - bottom: Seat anchored at bottom edge, expands upward (toward center)
 
-// 3 players: Equilateral triangle (120° apart)
-// Angles from top: 0°, 120°, 240° with radius ~40%
+// 3 players: Triangle — top + two bottom corners
 const LAYOUT_3: SeatPosition[] = [
-  { left: "50%", top: "8%", anchor: "top" },        // top (0°)
-  { left: "15%", top: "78%", anchor: "bottom" },    // bottom-left (240°)
-  { left: "85%", top: "78%", anchor: "bottom" },    // bottom-right (120°)
+  { left: "50%", top: "0%", anchor: "top" },        // top
+  { left: "17%", top: "97%", anchor: "bottom" },   // bottom-left
+  { left: "83%", top: "97%", anchor: "bottom" },   // bottom-right
 ];
 
-// 4 players: Diamond/square (90° apart)
-// Angles from top: 0°, 90°, 180°, 270° with radius ~42%
+// 4 players: Diamond — top, right, bottom, left
 const LAYOUT_4: SeatPosition[] = [
-  { left: "50%", top: "6%", anchor: "top" },        // top (0°)
-  { left: "92%", top: "50%", anchor: "center" },    // right (90°)
-  { left: "50%", top: "94%", anchor: "bottom" },    // bottom (180°)
-  { left: "8%", top: "50%", anchor: "center" },     // left (270°)
+  { left: "50%", top: "0%", anchor: "top" },        // top
+  { left: "84%", top: "50%", anchor: "center" },    // right
+  { left: "50%", top: "97%", anchor: "bottom" },   // bottom
+  { left: "16%", top: "50%", anchor: "center" },    // left
 ];
 
-// 5 players: Regular pentagon (72° apart)
-// Angles from top: 0°, 72°, 144°, 216°, 288° with radius ~42%
+// 5 players: Pentagon — top, upper-right, lower-right, lower-left, upper-left
 const LAYOUT_5: SeatPosition[] = [
-  { left: "50%", top: "6%", anchor: "top" },        // top (0°)
-  { left: "90%", top: "35%", anchor: "center" },    // top-right (72°)
-  { left: "75%", top: "85%", anchor: "bottom" },    // bottom-right (144°)
-  { left: "25%", top: "85%", anchor: "bottom" },    // bottom-left (216°)
-  { left: "10%", top: "35%", anchor: "center" },    // top-left (288°)
+  { left: "50%", top: "0%", anchor: "top" },        // top
+  { left: "84%", top: "38%", anchor: "center" },    // top-right
+  { left: "75%", top: "97%", anchor: "bottom" },   // bottom-right
+  { left: "25%", top: "97%", anchor: "bottom" },   // bottom-left
+  { left: "16%", top: "38%", anchor: "center" },    // top-left
 ];
 
 export const SEAT_LAYOUTS: Record<number, SeatPosition[]> = {

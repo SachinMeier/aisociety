@@ -73,6 +73,13 @@ class ActionView(BaseModel):
     possession_value: Optional[int] = None
 
 
+class RoundRecordView(BaseModel):
+    card: StatusCardView
+    winner_id: int
+    winner_name: str
+    coins_spent: List[int]
+
+
 class TurnResponse(BaseModel):
     game_id: str
     status: str
@@ -83,6 +90,7 @@ class TurnResponse(BaseModel):
     private_hand: Optional[List[int]] = None
     legal_actions: List[ActionView] = []
     results: Optional[dict] = None
+    round_history: Optional[List[RoundRecordView]] = None
 
 
 class ActionRequest(BaseModel):
@@ -150,6 +158,15 @@ def create_app(service: Optional[LocalGameService] = None) -> FastAPI:
     def get_turn(game_id: str) -> TurnResponse:
         try:
             view = svc.get_turn_view(game_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return _turn_view_to_response(game_id, view)
+
+    @app.post("/api/local-games/{game_id}/advance", response_model=TurnResponse)
+    def advance_bot(game_id: str) -> TurnResponse:
+        """Advance exactly one bot turn. No-op if it's a human's turn."""
+        try:
+            view = svc.advance_one_bot(game_id)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         return _turn_view_to_response(game_id, view)
@@ -281,6 +298,19 @@ def _turn_view_to_response(game_id: str, view: dict[str, Any]) -> TurnResponse:
             )
         )
 
+    round_history = None
+    if "round_history" in view and view["round_history"] is not None:
+        round_history = []
+        for rec in view["round_history"]:
+            round_history.append(
+                RoundRecordView(
+                    card=_status_card_view(rec["card"]),
+                    winner_id=rec["winner_id"],
+                    winner_name=rec["winner_name"],
+                    coins_spent=rec.get("coins_spent", []),
+                )
+            )
+
     # Service uses "result" key; plan contract uses "results"
     results = view.get("results") or view.get("result")
 
@@ -294,4 +324,5 @@ def _turn_view_to_response(game_id: str, view: dict[str, Any]) -> TurnResponse:
         private_hand=view.get("private_hand"),
         legal_actions=legal_actions,
         results=results,
+        round_history=round_history,
     )

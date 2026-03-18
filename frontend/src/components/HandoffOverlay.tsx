@@ -34,17 +34,18 @@ export default function HandoffOverlay({
         fontFamily: "'Georgia', serif",
       }}
     >
-      {/* Decorative flourish */}
+      {/* Decorative crown */}
       <div
         style={{
-          fontSize: 28,
+          fontSize: 48,
           color: "#d4af37",
           opacity: 0.3,
           marginBottom: 20,
-          letterSpacing: 12,
+          filter: "drop-shadow(0 2px 8px rgba(212, 175, 55, 0.5))",
+          lineHeight: 1,
         }}
       >
-        &#x2767; &#x2619;
+        &#9813;
       </div>
 
       <div

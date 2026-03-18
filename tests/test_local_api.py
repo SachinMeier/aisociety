@@ -68,12 +68,20 @@ def _stub_turn_view(
             {"kind": "pass"},
             {"kind": "bid", "cards": [1000]},
         ],
+        "round_history": [
+            {
+                "card": {"kind": "possession", "value": 7},
+                "winner_id": 2,
+                "winner_name": "Bot-Hard",
+                "coins_spent": [1000, 2000, 4000],
+            }
+        ],
     }
 
 
 @pytest.fixture
 def mock_service() -> MagicMock:
-    return MagicMock(spec=["create_game", "get_turn_view", "submit_human_action"])
+    return MagicMock(spec=["create_game", "get_turn_view", "submit_human_action", "advance_one_bot"])
 
 
 @pytest.fixture
@@ -193,6 +201,9 @@ def test_get_turn(
     body = resp.json()
     assert body["requires_handoff"] is True
     assert body["active_player_id"] == 1
+    assert body["round_history"][0]["card"]["value"] == 7
+    assert body["round_history"][0]["winner_name"] == "Bot-Hard"
+    assert body["round_history"][0]["coins_spent"] == [1000, 2000, 4000]
 
 
 def test_get_game_not_found(

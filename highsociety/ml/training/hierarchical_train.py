@@ -10,10 +10,12 @@ Optimized with:
 from __future__ import annotations
 
 import argparse
+import gc
 import json
 import multiprocessing as mp
 import os
 import random
+import signal
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
@@ -60,6 +62,11 @@ from highsociety.players.registry import PlayerRegistry, build_default_registry
 os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
 
 _PROGRESS_BAR_FORMAT = "{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]"
+
+
+def _worker_init() -> None:
+    """Initialize worker process to ignore SIGINT (parent handles it)."""
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
 
 
 @dataclass(frozen=True)
@@ -476,8 +483,14 @@ def _train_hierarchical_parallel(
         total_batches = spec.episodes // spec.batch_size
         episode_count = 0
 
-        # Create process pool
-        with mp.Pool(processes=spec.num_workers) as pool:
+        # Create process pool with proper signal handling
+        # Workers ignore SIGINT so parent can handle Ctrl+C gracefully
+        # maxtasksperchild=10 restarts workers periodically to prevent memory accumulation
+        with mp.Pool(
+            processes=spec.num_workers,
+            initializer=_worker_init,
+            maxtasksperchild=10,
+        ) as pool:
             for _batch_idx in tqdm(
                 range(total_batches),
                 total=total_batches,
@@ -489,6 +502,9 @@ def _train_hierarchical_parallel(
                 # Distribute episodes across workers
                 episodes_per_worker = spec.batch_size // spec.num_workers
                 remainder = spec.batch_size % spec.num_workers
+
+                # Get state_dict once per batch (not once per worker)
+                current_weights = model.state_dict()
 
                 worker_args = []
                 seed_offset = 0
@@ -503,16 +519,21 @@ def _train_hierarchical_parallel(
                     seed_offset += num_eps
                     worker_args.append((
                         seeds,
-                        model.state_dict(),  # Send current weights
+                        current_weights,  # Same reference, pickled once per worker
                         model_config_dict,
                         encoder_config,
                         spec,
                     ))
 
+                del current_weights  # Free after building args
+
                 # Run episodes in parallel
                 all_results: list[list[EpisodeResultSerializable]] = pool.map(
                     _worker_run_episodes, worker_args
                 )
+
+                # Free worker args immediately after map completes
+                del worker_args
 
                 # Flatten results
                 batch_results: list[EpisodeResultSerializable] = []
@@ -528,6 +549,11 @@ def _train_hierarchical_parallel(
                 all_values: list[torch.Tensor] = []
                 all_type_logits: list[torch.Tensor] = []
 
+                # First pass: collect metadata and all observations for batching
+                all_observations: list[list[float]] = []
+                ep_metadata: list[tuple[int, int]] = []  # (start_idx, length) per episode
+                valid_episodes: list[EpisodeResultSerializable] = []
+
                 for ep in batch_results:
                     if ep.won:
                         wins += 1
@@ -537,13 +563,29 @@ def _train_hierarchical_parallel(
                     if not ep.observations:
                         continue
 
-                    # Recompute log_probs by replaying through model
-                    for i, obs_encoded in enumerate(ep.observations):
-                        features = torch.tensor(obs_encoded, dtype=torch.float32, device=device)
-                        type_logits, card_probs, discard_logits, value = model(features)
-                        type_logits = type_logits.squeeze(0)
-                        card_probs = card_probs.squeeze(0)
-                        discard_logits = discard_logits.squeeze(0)
+                    start_idx = len(all_observations)
+                    all_observations.extend(ep.observations)
+                    ep_metadata.append((start_idx, len(ep.observations)))
+                    valid_episodes.append(ep)
+
+                if not all_observations:
+                    continue
+
+                # Single batched forward pass (key optimization)
+                batch_type_logits, batch_card_probs, batch_discard_logits, batch_values = (
+                    _batched_forward_pass(model, all_observations, device)
+                )
+
+                # Second pass: compute log_probs using batched outputs
+                obs_idx = 0
+                for ep_idx, ep in enumerate(valid_episodes):
+                    start_idx, length = ep_metadata[ep_idx]
+
+                    for i in range(length):
+                        idx = start_idx + i
+                        type_logits = batch_type_logits[idx]
+                        card_probs = batch_card_probs[idx]
+                        discard_logits = batch_discard_logits[idx]
 
                         action_type = ep.action_types[i]
 
@@ -569,9 +611,10 @@ def _train_hierarchical_parallel(
 
                         all_log_probs.append(log_prob)
                         all_type_logits.append(type_logits)
+                        obs_idx += 1
 
-                    # Compute GAE
-                    values_t = [torch.tensor(v, device=device) for v in ep.values]
+                    # Compute GAE for this episode
+                    values_t = [batch_values[start_idx + j].squeeze() for j in range(length)]
                     returns, advantages = _compute_gae_vectorized(
                         ep.rewards,
                         values_t,
@@ -582,6 +625,10 @@ def _train_hierarchical_parallel(
                     all_advantages.append(advantages)
                     all_returns.append(returns)
                     all_values.extend(values_t)
+
+                # Clean up batched tensors
+                del batch_type_logits, batch_card_probs, batch_discard_logits, batch_values
+                del all_observations, ep_metadata, valid_episodes
 
                 if not all_log_probs:
                     continue
@@ -615,6 +662,16 @@ def _train_hierarchical_parallel(
                 policy_losses.append(float(policy_loss.item()))
                 value_losses.append(float(value_loss.item()))
 
+                # Explicit memory cleanup to prevent accumulation
+                del log_probs_t, advantages_t, returns_t, values_t, type_logits_t
+                del all_log_probs, all_advantages, all_returns, all_values, all_type_logits
+                del batch_results, all_results
+                del loss, policy_loss, value_loss
+
+                # Periodic garbage collection (every 10 batches)
+                if _batch_idx % 10 == 0:
+                    gc.collect()
+
                 # Checkpoint
                 if spec.checkpoint_path and _should_checkpoint(episode_count, spec):
                     _write_checkpoint(spec, model, encoder, wins, episode_count)
@@ -642,6 +699,31 @@ def _train_hierarchical_parallel(
             artifact_logger.finalize(total_games=episode_count, training_metrics=metrics.to_dict())
 
         return metrics
+
+    except KeyboardInterrupt:
+        print("\n\nTraining interrupted by user (Ctrl+C)")
+        print(f"Completed {episode_count} episodes before interruption")
+
+        # Save checkpoint if configured
+        if spec.checkpoint_path and episode_count > 0:
+            print("Saving checkpoint before exit...")
+            _write_checkpoint(spec, model, encoder, wins, episode_count)
+
+        # Return partial metrics
+        avg_loss = sum(losses) / len(losses) if losses else 0.0
+        avg_policy = sum(policy_losses) / len(policy_losses) if policy_losses else 0.0
+        avg_value = sum(value_losses) / len(value_losses) if value_losses else 0.0
+
+        return TrainMetrics(
+            episodes=episode_count,
+            wins=wins,
+            win_rate=wins / episode_count if episode_count else 0.0,
+            poorest_eliminations=poorest_eliminations,
+            poorest_rate=poorest_eliminations / episode_count if episode_count else 0.0,
+            average_loss=avg_loss,
+            average_policy_loss=avg_policy,
+            average_value_loss=avg_value,
+        )
 
     finally:
         if artifact_logger is not None:
@@ -783,6 +865,13 @@ def _train_hierarchical_single(
                 spec.value_coef,
             )
 
+            # Check for NaN loss before backward
+            if torch.isnan(loss):
+                raise ValueError(
+                    f"NaN loss detected before backward. policy_loss={policy_loss.item():.6f}, "
+                    f"value_loss={value_loss.item():.6f}. Episode: {episode_count}"
+                )
+
             # Gradient update
             optimizer.zero_grad(set_to_none=True)
             loss.backward()
@@ -790,9 +879,28 @@ def _train_hierarchical_single(
             _set_optimizer_lr(optimizer, _learning_rate_for_episode(spec, episode_count))
             optimizer.step()
 
+            # Check for NaN weights after gradient update
+            for name, param in model.named_parameters():
+                if torch.isnan(param).any():
+                    raise ValueError(
+                        f"NaN detected in model weights '{name}' after gradient update. "
+                        f"Loss was {loss.item():.6f}. Consider lowering learning rate "
+                        f"or increasing max_grad_norm. Episode: {episode_count}"
+                    )
+
             losses.append(float(loss.item()))
             policy_losses.append(float(policy_loss.item()))
             value_losses.append(float(value_loss.item()))
+
+            # Explicit memory cleanup to prevent accumulation
+            del log_probs_t, advantages_t, returns_t, values_t, type_logits_t
+            del all_log_probs, all_advantages, all_returns, all_values, all_type_logits
+            del batch_results, batch_episodes
+            del loss, policy_loss, value_loss
+
+            # Periodic garbage collection (every 10 batches)
+            if _batch_idx % 10 == 0:
+                gc.collect()
 
             # Checkpoint
             if spec.checkpoint_path and _should_checkpoint(episode_count, spec):
@@ -825,6 +933,35 @@ def _train_hierarchical_single(
             artifact_logger.finalize(total_games=episode_count, training_metrics=metrics.to_dict())
 
         return metrics
+
+    except KeyboardInterrupt:
+        print("\n\nTraining interrupted by user (Ctrl+C)")
+        print(f"Completed {episode_count} episodes before interruption")
+
+        # Save checkpoint if configured
+        if spec.checkpoint_path and episode_count > 0:
+            print("Saving checkpoint before exit...")
+            _write_checkpoint(spec, model, encoder, wins, episode_count)
+
+        # Flush any pending artifacts
+        if artifact_logger is not None and pending_artifacts:
+            _flush_artifacts(artifact_logger, pending_artifacts)
+
+        # Return partial metrics
+        avg_loss = sum(losses) / len(losses) if losses else 0.0
+        avg_policy = sum(policy_losses) / len(policy_losses) if policy_losses else 0.0
+        avg_value = sum(value_losses) / len(value_losses) if value_losses else 0.0
+
+        return TrainMetrics(
+            episodes=episode_count,
+            wins=wins,
+            win_rate=wins / episode_count if episode_count else 0.0,
+            poorest_eliminations=poorest_eliminations,
+            poorest_rate=poorest_eliminations / episode_count if episode_count else 0.0,
+            average_loss=avg_loss,
+            average_policy_loss=avg_policy,
+            average_value_loss=avg_value,
+        )
 
     finally:
         # Clean up worker context
@@ -1036,6 +1173,15 @@ def _select_hierarchical_action_fast(
     type_logits = type_logits.squeeze(0)
     card_probs = card_probs.squeeze(0)
     discard_logits = discard_logits.squeeze(0)
+
+    # Defensive NaN check - fail fast with diagnostic info
+    if torch.isnan(type_logits).any() or torch.isnan(card_probs).any():
+        raise ValueError(
+            f"NaN detected in model output. type_logits: {type_logits}, card_probs: {card_probs}. "
+            f"Features has NaN: {torch.isnan(features).any().item()}. "
+            f"Check if model weights contain NaN (possibly from corrupted checkpoint "
+            f"or gradient explosion). To diagnose, check if any model parameters are NaN."
+        )
 
     # Handle discard case directly (no need for type selection)
     if is_discard:
@@ -1293,23 +1439,52 @@ def _sample_bid_action(
     return action, log_prob
 
 
+def _batched_forward_pass(
+    model: "HierarchicalPolicyValue",
+    observations: list[list[float]],
+    device: torch.device,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Run batched forward pass through model for all observations at once.
+
+    Returns:
+        type_logits: (N, 3) tensor of action type logits
+        card_probs: (N, num_cards) tensor of card selection probabilities
+        discard_logits: (N, max_possessions) tensor of discard logits
+        values: (N, 1) tensor of value estimates
+    """
+    # Stack all observations into a batch
+    features = torch.tensor(observations, dtype=torch.float32, device=device)
+
+    # Single batched forward pass
+    type_logits, card_probs, discard_logits, values = model(features)
+
+    return type_logits, card_probs, discard_logits, values
+
+
 def _compute_binary_log_prob(
     probs: torch.Tensor, selected: torch.Tensor, mask: torch.Tensor
 ) -> torch.Tensor:
-    """Compute log probability of binary selections (vectorized)."""
+    """Compute log probability of binary selections (vectorized).
+
+    Uses numerically stable computation to avoid NaN when probs are near 0 or 1.
+    """
     eps = 1e-8
 
-    # Clamp probabilities
-    p = probs.clamp(eps, 1.0 - eps)
+    # Detach selected - it's a discrete sample, not differentiable
+    selected_detached = selected.detach()
 
-    # Compute log probs for selection and non-selection
-    log_p_select = torch.log(p)
-    log_p_not_select = torch.log(1.0 - p)
+    # Clamp probabilities to avoid log(0) and log(1) edge cases
+    # Clamp both p and (1-p) separately to handle extreme values correctly
+    p_clamped = probs.clamp(eps, 1.0 - eps)
+    one_minus_p_clamped = (1.0 - probs).clamp(eps, 1.0 - eps)
 
-    # Use torch.where to select appropriate log prob based on selection
-    log_probs = torch.where(selected == 1, log_p_select, log_p_not_select)
+    # Compute log probs using clamped values
+    log_p_select = torch.log(p_clamped)
+    log_p_not_select = torch.log(one_minus_p_clamped)
 
-    # Mask out invalid positions and sum
+    # Compute log probability: s * log(p) + (1-s) * log(1-p) for each position
+    # Only sum over valid (masked) positions
+    log_probs = selected_detached * log_p_select + (1.0 - selected_detached) * log_p_not_select
     log_prob = (log_probs * mask.float()).sum()
 
     return log_prob

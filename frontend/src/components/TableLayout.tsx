@@ -12,8 +12,8 @@ interface TableLayoutProps {
 }
 
 // Minimum container dimensions
-const MIN_CONTAINER_WIDTH = 900;
-const MIN_CONTAINER_HEIGHT = 700;
+const MIN_CONTAINER_WIDTH = 660;
+const MIN_CONTAINER_HEIGHT = 600;
 
 export default function TableLayout({
   publicTable,
@@ -21,6 +21,9 @@ export default function TableLayout({
   roundWinner,
 }: TableLayoutProps) {
   const { players, status_card, round, revealed_status_cards } = publicTable;
+  const visibleRevealedCards = revealed_status_cards.filter(
+    (card) => card.kind !== "possession"
+  );
   const playerCount = players.length;
 
   // Get the layout for this player count, fallback to 5-player layout
@@ -41,10 +44,11 @@ export default function TableLayout({
     >
       {/* Center table content - shifted up slightly to balance with lowered bottom seats */}
       <div
+        data-testid="center-card"
         style={{
           position: "absolute",
           left: "50%",
-          top: "calc(50% - 20px)",
+          top: "50%",
           transform: "translate(-50%, -50%)",
           display: "flex",
           flexDirection: "column",
@@ -73,8 +77,8 @@ export default function TableLayout({
         ) : (
           <div
             style={{
-              width: 150,
-              height: 210,
+              width: 100,
+              height: 140,
               borderRadius: 14,
               border: "2px dashed rgba(255,255,255,0.15)",
               display: "flex",
@@ -119,7 +123,7 @@ export default function TableLayout({
         )}
 
         {/* Revealed (discarded) status cards */}
-        {revealed_status_cards.length > 0 && (
+        {visibleRevealedCards.length > 0 && (
           <div
             style={{
               display: "flex",
@@ -128,7 +132,7 @@ export default function TableLayout({
               opacity: 0.7,
             }}
           >
-            {revealed_status_cards.map((card, i) => (
+            {visibleRevealedCards.map((card, i) => (
               <StatusCard key={i} card={card} size="small" />
             ))}
           </div>
@@ -138,6 +142,7 @@ export default function TableLayout({
       {/* Round winner overlay */}
       {roundWinner && (
         <div
+          data-testid="round-winner-overlay"
           style={{
             position: "absolute",
             left: "50%",
@@ -156,6 +161,7 @@ export default function TableLayout({
             animation: "fadeIn 0.3s ease",
           }}
         >
+          <StatusCard card={roundWinner.card} size="small" />
           <div
             style={{
               fontSize: 22,
@@ -165,27 +171,27 @@ export default function TableLayout({
               textAlign: "center",
             }}
           >
-            {roundWinner.winnerName} won {roundWinner.cardLabel}!
+            {roundWinner.winnerName} won {roundWinner.cardLabel}
           </div>
-          {roundWinner.coins.length > 0 && (
+          <div
+            style={{
+              fontSize: 13,
+              color: "#a0a890",
+              textTransform: "uppercase",
+              letterSpacing: 1,
+              fontFamily: "'Georgia', serif",
+            }}
+          >
+            Coins spent
+          </div>
+          {roundWinner.coins.length > 0 ? (
             <>
-              <div
-                style={{
-                  fontSize: 13,
-                  color: "#a0a890",
-                  textTransform: "uppercase",
-                  letterSpacing: 1,
-                  fontFamily: "'Georgia', serif",
-                }}
-              >
-                Coins spent
-              </div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center" }}>
                 {roundWinner.coins
                   .slice()
                   .sort((a, b) => a - b)
                   .map((v, i) => (
-                    <Coin key={i} value={v} size="small" />
+                    <Coin key={i} value={v} size="normal" />
                   ))}
               </div>
               <div
@@ -199,6 +205,16 @@ export default function TableLayout({
                 Total: ${roundWinner.coins.reduce((s, v) => s + v, 0).toLocaleString()}
               </div>
             </>
+          ) : (
+            <div
+              style={{
+                fontSize: 18,
+                color: "#e0d8b0",
+                fontFamily: "'Georgia', serif",
+              }}
+            >
+              None
+            </div>
           )}
         </div>
       )}

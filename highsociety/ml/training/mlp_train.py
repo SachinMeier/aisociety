@@ -11,10 +11,12 @@ Optimized with:
 from __future__ import annotations
 
 import argparse
+import gc
 import json
 import multiprocessing as mp
 import os
 import random
+import signal
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
@@ -55,6 +57,11 @@ from highsociety.players.registry import PlayerRegistry, build_default_registry
 os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
 
 _PROGRESS_BAR_FORMAT = "{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]"
+
+
+def _worker_init() -> None:
+    """Initialize worker process to ignore SIGINT (parent handles it)."""
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
 
 
 @dataclass(frozen=True)
@@ -435,7 +442,11 @@ def _train_mlp_parallel(
         total_batches = spec.episodes // spec.batch_size
         episode_count = 0
 
-        with mp.Pool(processes=spec.num_workers) as pool:
+        with mp.Pool(
+            processes=spec.num_workers,
+            initializer=_worker_init,
+            maxtasksperchild=10,
+        ) as pool:
             for _batch_idx in tqdm(
                 range(total_batches),
                 total=total_batches,
@@ -448,6 +459,7 @@ def _train_mlp_parallel(
                 episodes_per_worker = spec.batch_size // spec.num_workers
                 remainder = spec.batch_size % spec.num_workers
 
+                current_weights = model.state_dict()
                 worker_args = []
                 seed_offset = 0
                 for worker_idx in range(spec.num_workers):
@@ -461,16 +473,18 @@ def _train_mlp_parallel(
                     seed_offset += num_eps
                     worker_args.append((
                         seeds,
-                        model.state_dict(),
+                        current_weights,
                         model_config_dict,
                         encoder_config,
                         spec,
                     ))
+                del current_weights
 
                 # Run episodes in parallel
                 all_results: list[list[EpisodeResultSerializable]] = pool.map(
                     _worker_run_episodes, worker_args
                 )
+                del worker_args
 
                 # Flatten results
                 batch_results: list[EpisodeResultSerializable] = []
@@ -537,6 +551,7 @@ def _train_mlp_parallel(
                     all_values.extend(ep_values)
 
                 if not all_log_probs:
+                    del batch_results, all_results
                     continue
 
                 # Stack tensors
@@ -561,6 +576,15 @@ def _train_mlp_parallel(
                 losses.append(float(loss.item()))
                 policy_losses.append(float(policy_loss.item()))
                 value_losses.append(float(value_loss.item()))
+
+                # Explicit cleanup to limit per-batch memory growth.
+                del log_probs_t, advantages_t, returns_t, values_t, entropy_t
+                del all_log_probs, all_advantages, all_returns, all_values, all_entropies
+                del batch_results, all_results
+                del loss, policy_loss, value_loss
+
+                if _batch_idx % 10 == 0:
+                    gc.collect()
 
                 # Checkpoint
                 if spec.checkpoint_path and _should_checkpoint(episode_count, spec):

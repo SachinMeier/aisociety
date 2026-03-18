@@ -24,6 +24,22 @@ export interface CreateGameResponse {
 
 // ---- API Client Functions ----
 
+export class ApiError extends Error {
+  status: number;
+  detail: string;
+
+  constructor(status: number, detail: string) {
+    super(`API error ${status}: ${detail}`);
+    this.name = "ApiError";
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
+export function isApiError(error: unknown): error is ApiError {
+  return error instanceof ApiError;
+}
+
 async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     headers: { "Content-Type": "application/json" },
@@ -31,7 +47,16 @@ async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`API error ${res.status}: ${text}`);
+    let detail = text;
+    try {
+      const body = JSON.parse(text) as { detail?: unknown };
+      if (typeof body.detail === "string") {
+        detail = body.detail;
+      }
+    } catch {
+      // Leave detail as raw text when response is not JSON.
+    }
+    throw new ApiError(res.status, detail);
   }
   return res.json();
 }
@@ -59,5 +84,11 @@ export async function submitAction(
   return apiFetch<TurnResponse>(`/api/local-games/${gameId}/actions`, {
     method: "POST",
     body: JSON.stringify({ player_id: playerId, action }),
+  });
+}
+
+export async function advanceBot(gameId: string): Promise<TurnResponse> {
+  return apiFetch<TurnResponse>(`/api/local-games/${gameId}/advance`, {
+    method: "POST",
   });
 }

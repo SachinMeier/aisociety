@@ -84,7 +84,7 @@ function getFlavorText(card: StatusCardData): string | null {
 const dims = {
   small: { w: 60, h: 82, valueFont: 22, subFont: 8, iconFont: 10, pad: 4, radius: 6, borderW: 1.5, flavorFont: 0, cornerFont: 7 },
   normal: { w: 100, h: 140, valueFont: 38, subFont: 11, iconFont: 14, pad: 8, radius: 10, borderW: 2, flavorFont: 9, cornerFont: 10 },
-  large: { w: 150, h: 210, valueFont: 56, subFont: 15, iconFont: 20, pad: 14, radius: 14, borderW: 3, flavorFont: 11, cornerFont: 14 },
+  large: { w: 100, h: 140, valueFont: 38, subFont: 12, iconFont: 16, pad: 10, radius: 12, borderW: 2, flavorFont: 9, cornerFont: 11 },
 };
 
 export default function StatusCard({ card, size = "normal" }: StatusCardProps) {

@@ -6,6 +6,8 @@ interface CoinProps {
   selectedWeak?: boolean;
   /** Coin has been spent — render as a dark shadow */
   spent?: boolean;
+  /** Keyboard shortcut label shown below the coin */
+  hotkey?: string;
   onClick?: () => void;
 }
 
@@ -24,6 +26,7 @@ export default function Coin({
   selected = false,
   selectedWeak = false,
   spent = false,
+  hotkey,
   onClick,
 }: CoinProps) {
   const d =
@@ -63,39 +66,53 @@ export default function Coin({
   const textColor = spent ? "#555" : selected ? "#fff" : "#5a4a10";
 
   return (
-    <div
-      onClick={onClick}
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        width: d.s,
-        height: d.s,
-        borderRadius: "50%",
-        background: bg,
-        border: `${d.border}px solid ${borderColor}`,
-        boxShadow: selected
-          ? `0 0 0 2px ${glowColor}, 0 2px 8px rgba(0,0,0,0.25), inset 0 1px 2px rgba(255,255,255,0.4)`
-          : "0 2px 8px rgba(0,0,0,0.2), inset 0 1px 2px rgba(255,255,255,0.5)",
-        cursor: onClick ? "pointer" : "default",
-        fontFamily: "'Georgia', serif",
-        userSelect: "none",
-        transition: "all 0.15s ease",
-        transform: selected ? "translateY(-4px)" : "none",
-      }}
-    >
-      <span
+    <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+      <div
+        onClick={onClick}
         style={{
-          fontSize: d.font,
-          fontWeight: "bold",
-          color: textColor,
-          textShadow: selected
-            ? "0 1px 2px rgba(0,0,0,0.3)"
-            : "0 1px 0 rgba(255,255,255,0.4)",
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: d.s,
+          height: d.s,
+          borderRadius: "50%",
+          background: bg,
+          border: `${d.border}px solid ${borderColor}`,
+          boxShadow: selected
+            ? `0 0 0 2px ${glowColor}, 0 2px 8px rgba(0,0,0,0.25), inset 0 1px 2px rgba(255,255,255,0.4)`
+            : "0 2px 8px rgba(0,0,0,0.2), inset 0 1px 2px rgba(255,255,255,0.5)",
+          cursor: onClick ? "pointer" : "default",
+          fontFamily: "'Georgia', serif",
+          userSelect: "none",
+          transition: "all 0.15s ease",
+          transform: selected ? "translateY(-4px)" : "none",
         }}
       >
-        {formatMoney(value)}
-      </span>
+        <span
+          style={{
+            fontSize: d.font,
+            fontWeight: "bold",
+            color: textColor,
+            textShadow: selected
+              ? "0 1px 2px rgba(0,0,0,0.3)"
+              : "0 1px 0 rgba(255,255,255,0.4)",
+          }}
+        >
+          {formatMoney(value)}
+        </span>
+      </div>
+      {hotkey && (
+        <span
+          style={{
+            fontSize: 10,
+            color: spent ? "#444" : "#888",
+            fontFamily: "monospace",
+            lineHeight: 1,
+          }}
+        >
+          {hotkey}
+        </span>
+      )}
     </div>
   );
 }

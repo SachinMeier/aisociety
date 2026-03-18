@@ -8,14 +8,6 @@
   padding: 2rem;
 }
 
-.crownIcon {
-  font-size: 3.5rem;
-  color: #d4af37;
-  filter: drop-shadow(0 2px 8px rgba(212, 175, 55, 0.5));
-  line-height: 1;
-  margin-bottom: 0.25rem;
-}
-
 .title {
   font-size: 5rem;
   font-weight: 700;

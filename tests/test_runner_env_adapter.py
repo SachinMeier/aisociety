@@ -10,6 +10,7 @@ from highsociety.app.observations import Observation, build_observation
 from highsociety.app.runner import GameRunner
 from highsociety.domain.actions import Action, ActionKind
 from highsociety.domain.rules import GameResult
+from highsociety.server.game_server import GameServer
 
 
 @dataclass
@@ -53,6 +54,21 @@ def test_game_runner_uses_turn_player_order() -> None:
     runner = GameRunner()
     runner.run_game(players, seed=1)
     assert calls
+
+
+def test_game_runner_cleans_up_game_server_records() -> None:
+    """Runner should not retain completed games in the in-memory server map."""
+    server = GameServer()
+    players = [
+        RecordingPlayer(name="p0"),
+        RecordingPlayer(name="p1"),
+        RecordingPlayer(name="p2"),
+    ]
+    runner = GameRunner(server=server)
+
+    runner.run_game(players, seed=3)
+
+    assert server.list_games() == []
 
 
 def test_env_adapter_exposes_legal_actions() -> None:

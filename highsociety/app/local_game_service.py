@@ -247,7 +247,59 @@ class LocalGameService:
         if step.error:
             raise InvalidAction(step.error)
 
-        self._advance_until_human_or_terminal(session)
+        # Check if the human's action ended the game
+        state = self._server.get_state(session.server_game_id)
+        if state.game_over:
+            self._finalize(session)
+        return self.get_turn_view(game_id)
+
+    def advance_one_bot(self, game_id: str) -> dict[str, Any]:
+        """Play exactly one bot turn and return the updated turn view.
+
+        If it's already a human's turn, game is over, or an error occurred,
+        returns the current turn view without advancing.
+        """
+        session = self.get_session(game_id)
+        state = self._server.get_state(session.server_game_id)
+
+        if state.game_over or session.status in ("finished", "errored"):
+            return self.get_turn_view(game_id)
+
+        current = _current_player_id(state)
+        if current in session.human_seats:
+            return self.get_turn_view(game_id)
+
+        bot = session.bot_players.get(current)
+        if bot is None:
+            session.status = "errored"
+            session.error = f"No bot registered for seat {current}"
+            return self.get_turn_view(game_id)
+
+        legal = self._server.legal_actions(session.server_game_id, current)
+        state = self._server.get_state(session.server_game_id)
+        if state.game_over:
+            self._finalize(session)
+            return self.get_turn_view(game_id)
+        if not legal:
+            session.status = "errored"
+            session.error = f"No legal actions for bot at seat {current}"
+            return self.get_turn_view(game_id)
+
+        observation = build_observation(state, current)
+        action = bot.act(observation, legal)
+        step = self._server.step(session.server_game_id, current, action)
+        if step.fatal:
+            session.status = "errored"
+            session.error = step.error
+            return self.get_turn_view(game_id)
+        if step.error:
+            session.status = "errored"
+            session.error = f"Bot action error: {step.error}"
+            return self.get_turn_view(game_id)
+
+        state = self._server.get_state(session.server_game_id)
+        if state.game_over:
+            self._finalize(session)
         return self.get_turn_view(game_id)
 
     # -- internal helpers ----------------------------------------------------

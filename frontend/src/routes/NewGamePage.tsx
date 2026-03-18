@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createGame, type SeatSpec } from "../api/client";
 import Divider from "../components/Divider";
+import CrownIcon from "../components/CrownIcon";
 import styles from "./NewGamePage.module.css";
 
 const SEAT_TYPES = ["human", "easy", "medium", "hard", "expert"] as const;
@@ -23,10 +24,24 @@ function getNextBotName(existingSeats: SeatSpec[]): string {
       return fullName;
     }
   }
-  // Fallback to numbered bots if all names are taken
   let i = 1;
   while (usedNames.has(`Bot ${i}`)) i++;
   return `Bot ${i}`;
+}
+
+function getNextHumanName(existingSeats: SeatSpec[]): string {
+  const usedNames = new Set(existingSeats.map((s) => s.name));
+  for (let i = 1; i <= 5; i++) {
+    const name = `Player ${i}`;
+    if (!usedNames.has(name)) return name;
+  }
+  let i = 1;
+  while (usedNames.has(`Player ${i}`)) i++;
+  return `Player ${i}`;
+}
+
+function getDefaultName(type: SeatSpec["type"], existingSeats: SeatSpec[]): string {
+  return type === "human" ? getNextHumanName(existingSeats) : getNextBotName(existingSeats);
 }
 
 const DEFAULT_SEATS: SeatSpec[] = [
@@ -43,7 +58,19 @@ export default function NewGamePage() {
 
   function updateSeat(index: number, patch: Partial<SeatSpec>) {
     setSeats((prev) =>
-      prev.map((s, i) => (i === index ? { ...s, ...patch } : s))
+      prev.map((s, i) => {
+        if (i !== index) return s;
+        const updated = { ...s, ...patch };
+        // When type changes, assign appropriate default name
+        if (patch.type && patch.type !== s.type) {
+          const wasHuman = s.type === "human";
+          const isHuman = patch.type === "human";
+          if (wasHuman !== isHuman) {
+            updated.name = getDefaultName(patch.type, prev);
+          }
+        }
+        return updated;
+      })
     );
   }
 
@@ -77,6 +104,7 @@ export default function NewGamePage() {
 
   return (
     <div className={styles.container}>
+      <CrownIcon />
       <h1 className={styles.heading}>Set Up Game</h1>
       <Divider />
 

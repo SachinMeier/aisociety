@@ -1,8 +1,9 @@
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { getGameState, type TurnResponse } from "../api/client";
+import { getGameState, isApiError, type TurnResponse } from "../api/client";
 import { formatMoney } from "../components/MoneyCard";
 import PaperCard from "../components/PaperCard";
+import CrownIcon from "../components/CrownIcon";
 import styles from "./ResultPage.module.css";
 
 export default function ResultPage() {
@@ -20,10 +21,14 @@ export default function ResultPage() {
 
     getGameState(gameId)
       .then(setTurn)
-      .catch((e) =>
-        setError(e instanceof Error ? e.message : "Failed to load results")
-      );
-  }, [gameId, turn]);
+      .catch((e) => {
+        if (isApiError(e) && e.status === 404) {
+          navigate("/", { replace: true });
+          return;
+        }
+        setError(e instanceof Error ? e.message : "Failed to load results");
+      });
+  }, [gameId, turn, navigate]);
 
   if (error) {
     return (
@@ -85,7 +90,7 @@ export default function ResultPage() {
     <div className={styles.container}>
       {/* Winner announcement */}
       <div className={styles.winnerSection}>
-        <div className={styles.crownIcon}>&#9813;</div>
+        <CrownIcon />
         <h1 className={styles.winnerName}>{winnerNames || "No winner"} wins!</h1>
       </div>
 

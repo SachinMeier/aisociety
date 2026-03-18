@@ -40,6 +40,36 @@ function findMatchingBid(
 
 const ALL_DENOMINATIONS = [1000, 2000, 3000, 4000, 6000, 8000, 10000, 12000, 15000, 20000, 25000];
 
+/** Maps keyboard event.code to coin denomination (in thousands) */
+const COIN_HOTKEYS: Record<string, number> = {
+  KeyA: 1000,
+  KeyS: 3000,
+  KeyD: 6000,
+  KeyF: 10000,
+  KeyG: 15000,
+  KeyH: 2000,
+  KeyJ: 4000,
+  KeyK: 8000,
+  KeyL: 12000,
+  Semicolon: 20000,
+  Quote: 25000,
+};
+
+/** Maps denomination to display label for the hotkey */
+const COIN_HOTKEY_LABELS: Record<number, string> = {
+  1000: "A",
+  3000: "S",
+  6000: "D",
+  10000: "F",
+  15000: "G",
+  2000: "H",
+  4000: "J",
+  8000: "K",
+  12000: "L",
+  20000: ";",
+  25000: "'",
+};
+
 export default function ActionPanel({
   legalActions,
   privateHand,
@@ -53,9 +83,6 @@ export default function ActionPanel({
   const [error, setError] = useState<string | null>(null);
 
   const canPass = legalActions.some((a) => a.kind === "pass");
-  const discardActions = legalActions.filter(
-    (a) => a.kind === "discard_possession" && a.possession_value != null
-  );
   const hasBidActions = legalActions.some((a) => a.kind === "bid");
 
   const handSet = new Set(privateHand ?? []);
@@ -105,12 +132,6 @@ export default function ActionPanel({
     onSubmit({ kind: "pass" });
   }
 
-  function handleDiscard(action: LegalAction) {
-    setError(null);
-    setSelectedValues(new Set());
-    onSubmit(action);
-  }
-
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.code === "Space" && canPass) {
@@ -119,6 +140,12 @@ export default function ActionPanel({
       } else if (e.code === "Enter" && hasBidActions && selectedCards.length > 0) {
         e.preventDefault();
         handleBid();
+      } else if (hasBidActions && e.code in COIN_HOTKEYS) {
+        const denom = COIN_HOTKEYS[e.code];
+        if (handSet.has(denom)) {
+          e.preventDefault();
+          toggleCard(denom);
+        }
       }
     }
     window.addEventListener("keydown", onKeyDown);
@@ -186,6 +213,7 @@ export default function ActionPanel({
                   spent={!available}
                   selected={isSelected}
                   selectedWeak={isSelected && !beatsHighest}
+                  hotkey={COIN_HOTKEY_LABELS[value]}
                   onClick={available && hasBidActions ? () => toggleCard(value) : undefined}
                 />
               );
@@ -304,35 +332,6 @@ export default function ActionPanel({
               Bid{selectedCards.length > 0 ? ` ${formatMoney(newBidTotal)}` : ""} [Enter]
             </button>
           )}
-
-          {/* Discard possession options */}
-          {discardActions.map((action, i) => (
-            <button
-              key={`discard-${i}`}
-              onClick={() => handleDiscard(action)}
-              style={{
-                padding: "10px 24px",
-                borderRadius: 8,
-                border: "2px solid rgba(255,255,255,0.2)",
-                backgroundColor: "rgba(255,255,255,0.05)",
-                color: "#d0d0c0",
-                fontSize: 14,
-                cursor: "pointer",
-                fontFamily: "'Georgia', serif",
-                transition: "all 0.1s ease",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = "#ffd700";
-                e.currentTarget.style.color = "#ffd700";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = "rgba(255,255,255,0.2)";
-                e.currentTarget.style.color = "#d0d0c0";
-              }}
-            >
-              Discard possession <strong>{action.possession_value}</strong>
-            </button>
-          ))}
         </div>
       </div>
     </div>

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import inspect
 import json
+import os
 import secrets
+import signal
 import shutil
 import subprocess
 import sys
@@ -274,6 +276,20 @@ def _cleanup_staged_checkpoint(job: dict[str, object]) -> None:
         stage_root.rmdir()
 
 
+def _stop_process(process: subprocess.Popen, *, force: bool) -> None:
+    """Stop a process, preferring SIGINT for graceful Python shutdown."""
+    try:
+        if force:
+            process.kill()
+            return
+        if os.name != "nt":
+            process.send_signal(signal.SIGINT)
+            return
+        process.terminate()
+    except ProcessLookupError:
+        return
+
+
 def _request_stop_training_job(job: dict[str, object], *, force: bool = False) -> bool:
     """Request termination of a running training job."""
     process = job.get("process")
@@ -281,10 +297,7 @@ def _request_stop_training_job(job: dict[str, object], *, force: bool = False) -
         return False
     if process.poll() is not None:
         return False
-    if force:
-        process.kill()
-    else:
-        process.terminate()
+    _stop_process(process, force=force)
     job["stop_requested"] = True
     job["stop_requested_at"] = time.time()
     job["status"] = "stopping"
@@ -305,7 +318,7 @@ def _maybe_force_stop(job: dict[str, object]) -> None:
         return
     if (time.time() - float(requested_at)) < _STOP_GRACE_SECONDS:
         return
-    process.kill()
+    _stop_process(process, force=True)
 
 
 def _refresh_training_jobs(session_state: dict[str, object]) -> list[dict[str, object]]:
@@ -360,7 +373,6 @@ def _start_training_job(
             stdout=log_file,
             stderr=subprocess.STDOUT,
             text=True,
-            start_new_session=True,
         )
     return {
         "id": job_id,
@@ -1240,6 +1252,16 @@ def _page_train_bots(streamlit) -> None:
                 key="train_mlp_episodes",
             )
             streamlit.caption("Total self-play episodes used to optimize the policy/value network.")
+            num_workers = streamlit.number_input(
+                "Parallel workers",
+                min_value=1,
+                value=1,
+                step=1,
+                key="train_mlp_num_workers",
+            )
+            streamlit.caption(
+                "Runs episode collection in multiple processes; start with 2-4 workers on CPU."
+            )
             learning_rate = streamlit.number_input(
                 "Learning rate",
                 min_value=0.000001,
@@ -1364,6 +1386,16 @@ def _page_train_bots(streamlit) -> None:
                 key="train_hierarchical_batch_size",
             )
             streamlit.caption("Episodes per gradient update (GAE computed over batch).")
+            num_workers = streamlit.number_input(
+                "Parallel workers",
+                min_value=1,
+                value=8,
+                step=1,
+                key="train_hierarchical_num_workers",
+            )
+            streamlit.caption(
+                "Runs episode collection in multiple processes; lower this if CPU usage is too high."
+            )
             learning_rate = streamlit.number_input(
                 "Learning rate",
                 min_value=0.000001,
@@ -1593,6 +1625,7 @@ def _page_train_bots(streamlit) -> None:
                 "checkpoint_every": int(checkpoint_every),
                 "artifacts_path": str(training_artifacts_path),
                 "device": str(device),
+                "num_workers": int(num_workers),
             }
             if learning_rate_final is not None:
                 spec_data["learning_rate_final"] = float(learning_rate_final)
@@ -1624,6 +1657,7 @@ def _page_train_bots(streamlit) -> None:
                 "checkpoint_every": int(checkpoint_every),
                 "artifacts_path": str(training_artifacts_path),
                 "device": str(device),
+                "num_workers": int(num_workers),
             }
             if learning_rate_final is not None:
                 spec_data["learning_rate_final"] = float(learning_rate_final)

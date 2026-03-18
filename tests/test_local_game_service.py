@@ -18,6 +18,16 @@ from highsociety.domain.errors import InvalidAction, InvalidState
 from highsociety.players.heuristic_bot import HeuristicBot
 from highsociety.players.registry import PlayerRegistry
 
+
+def _drain_bots(service: LocalGameService, game_id: str) -> None:
+    """Advance all pending bot turns after a human action."""
+    for _ in range(500):
+        view = service.get_turn_view(game_id)
+        if view["status"] != "active":
+            return
+        service.advance_one_bot(game_id)
+    raise RuntimeError("Bot drain exceeded safety limit")
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -269,6 +279,7 @@ class TestTerminalScoring:
             else:
                 action = Action(ActionKind.PASS)
             service.submit_human_action(session.game_id, player_id, action)
+            _drain_bots(service, session.game_id)
             steps += 1
         assert session.status == "finished"
         assert session.result is not None
